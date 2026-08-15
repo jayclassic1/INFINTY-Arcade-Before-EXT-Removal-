@@ -1,0 +1,8 @@
+Verdict: APPROVE
+Evidence checked: commit b5675ccf36ea0b510b171c3c037ae4497bc76e05; scoped diff for `index.html`, `scripts/validate-swing-blade-input-bridge.mjs`, and implementation runbook; parent focus/message bridge code around `arcade-focus-request`, `arcade-game-interaction`, launch timers, modal click refocus, and key forwarding; validator assertions.
+Tests run: `node scripts\validate-swing-blade-input-bridge.mjs` => PASS 40/40; no-write extraction parity check for current `index.html`/`games/swing-blade/index.html` against existing `tmp/check-index.mjs` and `tmp/check-swing-blade.mjs` => both true; `node --check tmp\check-index.mjs` => PASS; `node --check tmp\check-swing-blade.mjs` => PASS. Did not rerun `node tmp\extract-html-scripts.cjs` because it writes `tmp/*` outside `ALLOWED_WRITE_ROOTS`; instead confirmed the existing extracted files exactly match current HTML without writing.
+Issues: none blocking.
+Residual risk: no live browser/manual iframe focus repro was run in this review; browser focus behavior can still vary by engine, but static evidence matches the requested parent-shell keyboard-authority design and the no-write validation gates are green.
+Next action: ship.
+
+Scope control: manual path-containment fallback used because `verify_write_scope` tool was unavailable. Planned/actual write path `C:\Users\Jesse\.openclaw\workspaces\jmai\dapps\infinity-arcade-Jay\docs\runbooks\infinity-arcade-swing-blade-parent-shell-keyboard-authority-gmai-review-2026-05-14.md` resolves under allowed root `C:\Users\Jesse\.openclaw\workspaces\jmai\dapps\infinity-arcade-Jay\docs\runbooks`. No other writes performed.

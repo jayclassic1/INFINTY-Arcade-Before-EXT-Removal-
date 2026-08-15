@@ -1,0 +1,15 @@
+{
+  "canisters": {
+    "arcade_backend": {
+      "type": "motoko",
+      "main": "main.mo"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "--enhanced-orthogonal-persistence",
+      "packtool": ""
+    }
+  },
+  "version": 1
+}

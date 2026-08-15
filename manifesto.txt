@@ -1,0 +1,250 @@
+# Infinity Arcade's Manifesto
+### by Jay Nolan
+
+## What We Are About
+
+Infinity Arcade is a Decentralized Gaming Hub for Players, Game Developers and Artists to participate in an Open Economy that's hosted 100% OnChain thanks to the Internet Computer Protocol.
+
+It simulates a real arcade where Players deposit ICP for Tokens they spend to play games that award Tickets redeemable for Digital Assets, perks, and Prize Booth items. Tokens are arcade credits. Tickets are prize/perk points and cannot be exchanged for ICP.
+
+Game Developers from anywhere in the world can upload their games and accrue ICP-denominated claimable creator earnings based on player activity.
+
+NFT Artists or Collectors can Upload approved NFTs into the Prize Booth; seller earnings accrue in an ICP-denominated claimable balance while Tickets remain arcade prize/perk points.
+
+Creator/seller earnings accrue in ICP-denominated claimable balances. Manual creator claim hardening is a later phase; there is no weekly automatic batch payout in this phase.
+
+## Operating Costs Advantage
+
+When compared to traditional Arcade business model, Infinity Arcade's Operating Costs are absurdly low, because not only are we obviously not leasing commercial space to set up real cabinets, paying payroll, maintenance or electricity â
+
+Being on the Internet Computer lets us cut out traditional web2 middlemen as well. Being fully OnChain, we don't have traditional cyber security costs, web service fees, 3rd party infrastructure or software dependencies. There are no vendor lock-ins.
+
+We basically just pay for compute.
+
+And the Treasury is programmed to distribute revenue to wherever its needed, to stay the platform up, pay our contributors, and fund our growth. With leftover allocation going to Development Team and the Community DAO (Decentralized Autonomous Organization aka an automated democracy).
+
+## The DAO â One of a Kind
+
+The DAO is unique and one of a kind.
+
+This is not an SNS DAO (ICP's traditional DAO system). There is also no Native Altcoin to invest in, therefore, no extraction point for VCs or any price to manipulate. The creator/seller earning model is ICP-denominated, while player Tokens and Tickets are closed-loop arcade credits and prize/perk points.
+
+Our Arcade is designed to eliminate attack surfaces for bad actors. There is nothing like this in the gaming industry.
+
+This is a pure Utility dApp for ICP.
+
+The DAO is its own community layer which controls things like Game/Art approvals, Contests/Tournaments, General Forum and submitting requests to Dev Team.
+
+The DAO does not fully control the platform. Infinity Arcade reserves the right to intervene in extreme cases for project security or to remove content that's offensive and deemed distasteful.
+
+### Voting Power (VP) NFTs
+
+If someone wants voting power in the DAO they must buy VP NFTs in the Prize Booth which cap out at a maximum 10 per user.
+
+Meaning no whales can centralize voting power to themselves. You also cannot buy voting power, you have to earn it by playing the games.
+
+The number one perk of being part of the DAO is that holding VP NFTs make you eligible for jackpots and the more you own the more you win.
+
+ICP technology can verifiably guarantee randomness AND fair outcomes where winnings are dispersed evenly among VP holders so no single VP NFT ever wins again before everyone else has.
+
+Meaning you'll always win eventually and equally proportioned to how many VP NFTs you own.
+
+You also become an ornamented member of the community. VP NFTs appear as badges on your profile and give access to restricted forums which come in three levels. The deeper you go the more insider circles and information you have access to.
+
+## Not a Casino
+
+It's important to note that Infinity Arcade is not a Casino. Players do not make direct ICP from Gameplay. DAO jackpots only pay out Tokens and Tickets, and a few other things.
+
+The focus of this project is to be BY gamers, game developers and artists, FOR gamers, game developers and artists.
+
+We only facilitate the fun and its economy while being the thinnest layer possible. The pie is shared fairly between all parties, while the platform collects fees for operating costs, development, and community kickbacks.
+
+And since our operating costs are so low we can give far more value back.
+
+For example, Steam and app stores usually take 30% of revenue from their game developers and traditional Arcades pay back roughly 50% in ticket purchasing power for their prize stores (on average).
+
+Infinity Arcade undercuts these middlemen substantially.
+
+Users pay us to list Prizes rather than us solely stocking the store out of our own pockets.
+
+**Infinity Arcade is the first model of its kind in the world.**
+
+And Meritocracy is free to explode. Traffic is rewarded and everybody involved is incentivized to do their best.
+
+The platform rewards those who create the best games, get the most high scores, or submit the best art, and the more volume/traffic the platform gets, the more fees are programmed to come down.
+
+All of this is happening on the most secure software code in existence.
+
+## Growth Opportunity
+
+And opportunity for growth is insane.
+
+With AI capabilities, anyone can now make a video game with no coding skills. We will have contests to attract from communities all over the web. Infinity Arcade will not be considered a success until anyone from anywhere can make a living off what they upload.
+
+Admittedly, the games won't be AAA, but tightness in capabilities produces more imaginative innovation, especially when rewards flow so frictionlessly.
+
+And the community has real agency to grow the project through the DAO.
+
+## Game Categories
+
+### Showroom
+Only here do games earn revenue.
+
+### The Back
+Anyone can upload a link to their game. This is where games prove themselves. However, only the DAO or Development Team can approve games for the Showroom.
+
+## NFT Types
+
+### 1. Existing NFTs
+Which use traditional ICP standard and can be withdrawn and sold on other Markets.
+
+### 2. New Mints
+That the Arcade mints that anyone can do and generally stays inside the Arcade.
+
+### 3. VP NFTs
+Auto-generated per User and limited to ten you can redeem for only once.
+
+---
+
+## OUR REVENUE STREAMS
+
+### 1. Token Purchases (Our Bread and Butter)
+**1 ICP = 100 Tokens**
+
+### 2. Gameplay (Revenue for DAO)
+1% of all tokens spent on games are distributed to DAO treasury for Jackpots.
+
+### 3. Game Submissions
+
+**Submission to Showroom:**
+- Costs 100 ICP to apply
+- 95 ICP is refunded if submission is Rejected
+
+**The Back:**
+- Costs 10 ICP to apply
+- No refund if rejected
+
+### 4. NFT Submissions
+
+**Existing NFTs:**
+- Cost 0.1 ICP to list in Prize Booth
+
+**New Mints:**
+- Costs 0.25 ICP to mint
+- 0.1 ICP to list in Prize Booth
+
+**Full Collections:**
+- Depends on size and arranged with Dev Team
+
+### 5. NFT Purchases
+
+Infinity Arcade charges 5% for every NFT that gets redeemed:
+- **2.5% of tickets get Burned**
+- **2.5% goes to DAO Jackpots**
+
+> **NOTE:** The more tickets burned, the more profit remains in Treasury. Other strategies to burn tickets are under consideration.
+
+**Official Arcade Collections:**
+When someone redeems tickets for one of our official NFT Collections, 100% of tickets are burned.
+
+**Royalties from Official Collection:**
+When users withdraw Official NFTs to sell on markets, 2.5% Royalties of every sale is programmed to go to Arcade Treasury.
+
+**VP NFTs:**
+When users redeem for VP, 50% of tickets are burned, other 50% goes to DAO Treasury for jackpots.
+
+---
+
+## Economic Notes
+
+> **NOTE:** The Dev team has the power to adjust token payout in order to best maintain fair value when ICP prices fluctuate.
+
+We can also add more cryptos to the Token Dispenser. Virtually all altcoins on ICP are available, including all chainkeys. However, this would be a measured decision as Infinity Arcade wants to focus on giving ICP value. Only Bitcoin is being considered at this point.
+
+## Economic Stability: Fixed Payouts, Adjustable Valves
+
+**Core Principle: Players never feel the squeeze.**
+
+Ticket awards per game are **fixed and hardcoded**. A score of 5,000 always awards 500 tickets. Always. No exceptions. No "dynamic adjustments." This is a trust contract with players.
+
+Tickets are internal prize/perk points. They cannot be exchanged for ICP; creator/seller earnings are tracked separately as ICP-denominated claimable balances.
+
+### What Stays Constant (Player Trust)
+- **Ticket awards per game** â hardcoded per score range, never change
+- **Player experience** â same score = same reward, every time
+- **The feeling of earning** â consistency builds loyalty
+
+### What's Adjustable (Economic Levers)
+If the treasury needs protection, we tighten the **output valves**, never the input experience:
+- **Token price** â 1 ICP = 100 Tokens (adjustable)
+- **NFT ticket prices** â how many tickets an NFT costs to redeem
+- **Artist claim policy** - how approved seller earnings accrue and become claimable
+- **Developer claim policy** - how approved game creator earnings accrue and become claimable
+- **Fee percentage** â what % the treasury keeps from each transaction
+
+### Why This Works
+```
+Player pays 1 Token (0.01 ICP) â Plays game â Earns 500 Tickets
+                                                    â
+                          Tickets sit in account (costs treasury nothing)
+                                                    â
+                          Redeems 10,000 Tickets for an NFT
+                                                    â
+                    NFT seller earnings accrue separately as claimable ICP-denominated balance
+```
+
+Treasury risk is controlled by separating player credits from creator liabilities. Tickets flowing between players and the prize booth remain closed-loop arcade accounting; creator/seller balances are tracked separately.
+
+---
+
+## OTHER REVENUES Under Consideration
+
+### Advertisement
+Sponsors can pay for Banners in the Arcade. (This is not likely though, as we want a purist philosophy to be part of our brand.)
+
+### Merchant Store
+Where T-Shirts and Hats of your NFT can be bought and shipped, exclusively available only to holders of whichever NFT is used.
+
+### Avatar Builder
+Users purchase a blank mannequin NFT they pay tickets to upgrade with facial features and accessories from a mystery capsule styled vending machine (Gashapon). Each upgrade destroys the old NFT and mints a new one. Users can use NFTs as their Profile picture.
+
+### Digital Jukebox
+Musicians upload songs Players pay tokens for to decorate their profile as background music and when viewing score boards. When the user has highest score, everyone viewing hears their song.
+
+---
+
+## DAO Governance Model: Hybrid
+
+The DAO is a **hybrid governance model** â some actions auto-execute unstoppably on-chain, others are community polls that admins implement after review.
+
+### Auto-Execute (Unstoppable on-chain)
+Community votes pass â action happens automatically. No admin needed.
+
+- **Weekly Spotlight** â DAO votes which game gets featured on the homepage for a week
+- **Contest Themes** â community picks the theme
+- **Community Badges/Titles** â award recognition to players
+- **Bonus Ticket Drops** â distribute from DAO pool (capped amount per proposal)
+- **Leaderboard Season Names** â community names each season
+
+### Polls (Admin implements after review)
+Community votes to signal intent â dev team reviews and implements.
+
+- Game approvals (Showroom promotion)
+- Feature requests
+- Economic suggestions
+- Content removal requests
+- Anything touching treasury, fees, or payouts
+
+**The Philosophy:** The DAO directly controls the fun stuff â spotlights, contests, badges, bonuses. The serious stuff â money, content moderation, Showroom curation â goes through the dev team to protect the platform. As trust grows, more actions can move to auto-execute.
+
+---
+
+## IN CONCLUSION
+
+Infinity Arcade has three main missions:
+
+1. **Become a sustainable business**
+
+2. **Make it so anyone on the planet can build a livelihood contributing to the platform**
+
+3. **Show the world what's possible on ICP using new paradigm crypto software**

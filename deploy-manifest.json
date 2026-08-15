@@ -1,0 +1,26 @@
+{
+  "project": "Infinity Arcade",
+  "canonical": true,
+  "frontendCanister": "mprew-viaaa-aaaah-quola-cai",
+  "backendCanister": "pifyq-raaaa-aaaab-agrqq-cai",
+  "legacyFrontendCanister": "ewgfh-vqaaa-aaaah-qtixa-cai",
+  "sourceDir": "C:\\Users\\Jesse\\.openclaw\\workspaces\\jmai\\dapps\\infinity-arcade-Jay",
+  "canonicalSource": "C:\\Users\\Jesse\\.openclaw\\workspaces\\jmai\\dapps\\infinity-arcade-Jay",
+  "restorationArtifact": "C:\\Users\\Jesse\\.openclaw\\workspaces\\jmai\\incoming\\jay-arcade-public-bundle",
+  "legacyTrees": [
+    "C:\\Users\\Jesse\\.openclaw\\workspaces\\jmai\\dapps\\icp-arcade",
+    "C:\\Users\\Jesse\\.openclaw\\workspaces\\jmai\\icp-arcade"
+  ],
+  "deployRule": "Build sanitized frontend payload with node scripts/build-frontend-publish.mjs, dry-run/deploy using .deploy/frontend-public only, and target frontend canister mprew-viaaa-aaaah-quola-cai. Backend target remains pifyq-raaaa-aaaab-agrqq-cai. Do not deploy project root or legacy paths.",
+  "legacyCanisterPolicy": {
+    "status": "quarantined-reference-only",
+    "note": "Legacy canister fields are retained only for rollback/audit context. Do not deploy to, call, or validate production against these canisters during normal operation. Active frontend is frontendCanister; active backend is backendCanister.",
+    "deniedValidationTargets": [
+      "icparcade.dev",
+      "ewgfh-vqaaa-aaaah-qtixa-cai"
+    ],
+    "retireAfter": "Post-stabilization validation window and explicit retirement approval."
+  },
+  "legacyBackendCanister_referenceOnly": "sympv-naaaa-aaaad-qktuq-cai",
+  "frontendDeploySource": "C:\\Users\\Jesse\\.openclaw\\workspaces\\jmai\\dapps\\infinity-arcade-Jay\\.deploy\\frontend-public"
+}

@@ -1,0 +1,21 @@
+[package]
+name = "infinity-arcade-jay-backend"
+version = "0.1.0"
+
+[build]
+outputDir = "backend/.build"
+args = ["--release", "--enhanced-orthogonal-persistence"]
+
+[canisters.arcade_backend]
+main = "backend/main.mo"
+
+[toolchain]
+moc = "1.4.1"
+
+[moc]
+args = [
+  "--enhanced-orthogonal-persistence"
+]
+
+[dependencies]
+base = "0.16.0"

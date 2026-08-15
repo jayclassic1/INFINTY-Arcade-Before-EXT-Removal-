@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+  @page { margin: 0.75in; size: letter; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11pt; line-height: 1.55; color: #1a1a1a; max-width: 7in; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 20pt; border-bottom: 3px solid #d81f33; padding-bottom: 8px; margin-top: 0; color: #111; }
+  h2 { font-size: 15pt; color: #d81f33; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-top: 28px; }
+  h3 { font-size: 12pt; color: #333; margin-top: 18px; }
+  h4 { font-size: 11pt; color: #555; margin-top: 14px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10pt; }
+  th { background: #1a1a1a; color: white; padding: 8px 10px; text-align: left; font-weight: 600; }
+  td { padding: 6px 10px; border-bottom: 1px solid #e0e0e0; }
+  tr:nth-child(even) { background: #f8f8f8; }
+  code { background: #f0f0f0; padding: 2px 5px; border-radius: 3px; font-size: 10pt; font-family: 'Consolas', monospace; }
+  pre { background: #1a1a1a; color: #e0e0e0; padding: 16px; border-radius: 6px; font-size: 9.5pt; overflow-x: auto; white-space: pre-wrap; font-family: 'Consolas', monospace; }
+  pre code { background: none; padding: 0; color: inherit; }
+  blockquote { border-left: 4px solid #d81f33; margin: 12px 0; padding: 8px 16px; background: #fdf6f6; }
+  strong { color: #111; }
+  hr { border: none; border-top: 2px solid #ddd; margin: 24px 0; }
+  ul { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  p { margin: 8px 0; }
+  .emoji { font-size: 13pt; }
+</style>
+</head><body>
+<h1>Infinity Arcade Game Submission Requirements</h1></p><p>Use this as the hard checklist before submitting a game to Infinity Arcade. If you are using AI to build the game, paste the <strong>AI Builder Prompt</strong> section into your AI tool.</p><p>For the full builder eligibility standard, including the universal Arcade shell <strong>Start</strong> overlay requirement, see <code>docs/runbooks/infinity-arcade-builder-eligibility-standard.md</code>.</p><p><h2>Submission paths</h2></p><p><ul><li><strong>The Back:</strong> submit a playable browser game URL. Use <code>https://</code> whenever possible.</li>
+<li><strong>Showroom / on-chain:</strong> submit game details first, then provide a review zip for final on-chain upload.</li>
+</ul>
+<h2>Hard requirements</h2></p><p><ul><li>The game must be playable in a browser.</li>
+<li>The game must run inside an iframe.</li>
+<li>The game must work in Chromium browsers and Firefox.</li>
+<li>If marked mobile-compatible, it must work on mobile/tablet too.</li>
+<li>Thumbnail/image uploads must be <strong>2 MB max</strong>.</li>
+<li>Game scores must be positive integers. Higher score must mean better score.</li>
+<li>Do not submit floats, strings, negative scores, or formatted score text.</li>
+<li>Do not make backend/canister/wallet calls inside the game loop.</li>
+<li>Economy actions belong at session boundaries only: start game, game over, submit score, claim/withdraw outside gameplay.</li>
+<li>Ticket games must clearly support score-based ticket payout rules and backed-pool limits.</li>
+<li>Normal games must not pretend to be ticket-backed games.</li>
+<li>No malicious, hidden, phishing, wallet-draining, auto-download, exploit, or obfuscated behavior.</li>
+</ul>
+<h2>Showroom / on-chain zip requirements</h2></p><p><ul><li>Package the game as a <code>.zip</code>.</li>
+<li>The zip must include an <code>index.html</code> entry point.</li>
+<li>Zip size must be <strong>10 MB max</strong>.</li>
+<li>Every file inside the zip must be <strong>2 MB max uncompressed</strong>.</li>
+<li>The game must be self-contained: include required HTML, CSS, JS, images, fonts, sounds, and assets in the zip.</li>
+<li>Do not depend on external runtime asset loading. Avoid external <code>fetch()</code>, CDN scripts, remote images, remote audio, external APIs, or server-only logic.</li>
+</ul>
+<h2>Required submission info</h2></p><p><ul><li>Game name</li>
+<li>Developer/studio name</li>
+<li>Short description</li>
+<li>Thumbnail image</li>
+<li>Category: <code>AI Made</code>, <code>Independent</code>, or <code>Studio</code></li>
+<li>Platform: <code>Desktop</code>, <code>Desktop + Mobile</code>, or equivalent</li>
+<li>Game type: ticket game or regular game</li>
+<li>Token cost, if applicable: <strong>1–20 Tokens</strong></li>
+<li>Scoring mode: <code>best-of</code> or <code>cumulative</code></li>
+<li>Purchase price, if applicable: <strong>0–1000 Tokens</strong></li>
+<li>For The Back: playable game URL</li>
+<li>For Showroom/on-chain: review/demo URL if available, plus the zip after review request</li>
+</ul>
+Optional/admin-assisted:</p><p><ul><li>Screenshots: up to <strong>5</strong>, recommended 16:9 and at least 800px wide</li>
+<li>Hosted thumbnail URL, if already available</li>
+</ul>
+<h2>Input requirements</h2></p><p>The game should support both:</p><p><li>Native keyboard input inside the iframe.</li>
+<li>Infinity Arcade parent input messages:</li></p><p><pre>js
+{
+  type: 'arcade-key',
+  player: 0,
+  action: 'left' | 'right' | 'up' | 'down' | 'a' | 'b' | 'c' | 'd' | 'start',
+  state: 'down' | 'up'
+}</pre></p><p>Rules:</p><p><ul><li>Map movement to <code>left/right/up/down</code>.</li>
+<li>Map <code>a</code> and/or <code>start</code> to primary action/start/confirm.</li>
+<li>Use <code>b/c/d</code> only for secondary actions.</li>
+<li>Track held keys correctly; only treat an action as “just pressed” on an up-to-down transition.</li>
+<li>Ignore unknown actions safely.</li>
+<li>Keep native keyboard support even if <code>arcade-key</code> support is added.</li>
+</ul>
+<h2>Universal Start overlay compatibility</h2></p><p>Infinity Arcade Showroom should provide a platform-level <strong>Start</strong> button overlay for every launched game, including regular games and ticket-payout games.</p><p>This overlay is owned by the Arcade shell. Builders should not rely on custom focus hacks or browser-specific click behavior. To benefit from the universal Start overlay, the game must treat Arcade <code>arcade-key</code> messages with <code>action: 'a'</code> and/or <code>action: 'start'</code> as Start/Confirm when the game is waiting to begin.</p><p>The shell overlay can focus an iframe and send the standard input message, but it cannot reliably start a game that ignores the Arcade input contract.</p><p><h2>Packaging rules for Showroom zip</h2></p><p>Recommended zip layout:</p><p><pre>text
+index.html
+assets/
+  sprites.png
+  music.ogg
+  sfx.ogg
+  font.woff2</pre></p><p>Avoid:</p><p><pre>text
+__MACOSX/
+.DS_Store
+.git/
+node_modules/
+src-only files with no built output
+files over 2 MB
+zip over 10 MB</pre></p><p>Audio tips:</p><p><ul><li>Prefer OGG/MP3 loops and compressed SFX.</li>
+<li>Avoid large WAV files.</li>
+<li>Procedural audio is strongly preferred when possible.</li>
+</ul>
+<h2>Minimum pre-submit test</h2></p><p>Before submission, verify:</p><p><ul><li>Runs standalone from the submitted URL or local <code>index.html</code>.</li>
+<li>Runs embedded in an iframe.</li>
+<li>Works in Chrome/Brave.</li>
+<li>Works in Firefox.</li>
+<li>Keyboard controls work.</li>
+<li><code>arcade-key</code> postMessage controls work.</li>
+<li>No external assets are required for Showroom/on-chain mode.</li>
+<li>No canister/backend calls happen every frame.</li>
+<li>Score is submitted only after game over or explicit completion.</li>
+<li>Score is a positive integer.</li>
+<li>Mobile works if you claim mobile support.</li>
+</ul>
+<h2>AI Builder Prompt</h2></p><p>Build a browser game for Infinity Arcade with these constraints:</p><p><ul><li>Output a complete static web game with <code>index.html</code> as the entry point for Showroom/on-chain zip submission.</li>
+<li>The final Showroom zip must be under 10 MB.</li>
+<li>No individual file may exceed 2 MB uncompressed.</li>
+<li>Bundle all assets locally; do not rely on CDNs, remote images, remote audio, external APIs, servers, Node runtime, or runtime package installs.</li>
+<li>The game must run in an iframe in Chrome/Brave and Firefox.</li>
+<li>Implement native keyboard controls.</li>
+<li>Also implement <code>window.addEventListener('message', ...)</code> support for Infinity Arcade <code>arcade-key</code> messages with actions <code>left</code>, <code>right</code>, <code>up</code>, <code>down</code>, <code>a</code>, <code>b</code>, <code>c</code>, <code>d</code>, and <code>start</code>, with states <code>down</code> and <code>up</code>.</li>
+<li>Treat <code>a</code> and/or <code>start</code> as Start/Confirm when the game is waiting to begin, so the Arcade shell's universal Start overlay can activate the game.</li>
+<li>Track input state so held keys do not repeatedly trigger one-shot actions.</li>
+<li>Use <code>requestAnimationFrame</code> for the game loop.</li>
+<li>Do not call backend, wallet, ICP, canister, or network APIs inside the frame loop.</li>
+<li>If the game has scoring, score must be a positive integer where higher is better.</li>
+<li>Include a clear game-over state where the final integer score can be submitted by the parent arcade.</li>
+<li>Keep assets small; prefer compressed images, OGG/MP3 audio, or procedural sound.</li>
+<li>Provide final files in a zip-ready structure with no <code>node_modules</code>, <code>.git</code>, <code>__MACOSX</code>, <code>.DS_Store</code>, or oversized files.</li>
+</ul>
+</body></html>

@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://github.com/dfinity/icp-cli/raw/refs/heads/main/docs/schemas/icp-yaml-schema.json
+# Active ICP CLI project config. backend/dfx.json is retained only as legacy reference.
+networks:
+  - name: local
+    mode: managed
+
+canisters:
+  - name: arcade_backend
+    build:
+      steps:
+        - type: script
+          commands:
+            - mops build arcade_backend
+            - cp backend/.build/arcade_backend.wasm "$ICP_WASM_OUTPUT_PATH"
+
+  - name: frontend
+    recipe:
+      type: "@dfinity/asset-canister@v2.1.0"
+      configuration:
+        dir: .deploy/frontend-public

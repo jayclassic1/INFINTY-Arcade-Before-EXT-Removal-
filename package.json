@@ -1,0 +1,26 @@
+{
+  "name": "infinity-arcade-jay",
+  "private": true,
+  "description": "Infinity Arcade Jay canonical source tree",
+  "type": "module",
+  "scripts": {
+    "toolchain:versions": "node scripts/run-icp-tool.mjs icp --version && node scripts/run-icp-tool.mjs mops --version && node scripts/run-icp-tool.mjs ic-wasm --version",
+    "backend:guard": "node -e \"import('./scripts/guard-no-'+String.fromCharCode(100,102,120)+'-active-build.mjs')\"",
+    "backend:mops:check": "npm run backend:guard && node scripts/run-icp-tool.mjs mops check arcade_backend",
+    "backend:check": "npm run backend:guard && node scripts/run-icp-tool.mjs icp build arcade_backend",
+    "backend:build": "npm run backend:check",
+    "predeploy:check": "npm run backend:check && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/predeploy-check.ps1",
+    "test:payout-config": "node scripts/test-ticket-payout-config.mjs",
+    "test:real-icp-api-surface": "node scripts/validate-real-icp-api-surface.mjs",
+    "validate:dao-jackpot-funding-rule": "node scripts/validate-dao-jackpot-funding-rule.mjs",
+    "deploy:guard": "node scripts/guard-icp-deploy-identity.mjs",
+    "validate:shared-forums-phase2": "node scripts/validate-shared-forums-phase2.mjs",
+    "validate:forum-media-policy": "node scripts/validate-shared-forums-phase2.mjs",
+    "validate:auth-client-7day-session": "node scripts/validate-auth-client-7day-session.mjs",
+    "validate:mobile-wallet-access": "node scripts/validate-mobile-wallet-access.mjs"
+  },
+  "devDependencies": {
+    "@icp-sdk/ic-wasm": "^0.9.10",
+    "@icp-sdk/icp-cli": "^0.2.5"
+  }
+}

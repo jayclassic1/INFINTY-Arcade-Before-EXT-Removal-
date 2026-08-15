@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shred Gnar | Infinity Arcade</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="game-shell">
+    <section class="game-frame" aria-label="Shred Gnar game shell">
+      <header class="hud" aria-label="Game heads-up display">
+        <div class="hud__group">
+          <div class="hud__item">
+            <span class="hud__label">Score</span>
+            <span id="scoreValue" class="hud__value">000000</span>
+          </div>
+          <div class="hud__item">
+            <span class="hud__label">Combo</span>
+            <span id="comboValue" class="hud__value">x1.0</span>
+          </div>
+        </div>
+        <div class="hud__group hud__group--right">
+          <div class="hud__item">
+            <span class="hud__label">Speed</span>
+            <span id="speedValue" class="hud__value">24 mph</span>
+          </div>
+          <div class="hud__item hud__item--wide">
+            <span class="hud__label">Trick</span>
+            <span id="trickValue" class="hud__value">Boot sequence stable</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="canvas-wrap">
+        <canvas id="gameCanvas" width="960" height="540" aria-label="Shred Gnar playfield"></canvas>
+
+        <aside id="failPanel" class="fail-panel" aria-live="polite">
+          <p class="fail-panel__eyebrow">Run ended</p>
+          <h1 id="failTitle" class="fail-panel__title">Bail state placeholder</h1>
+          <p id="failCopy" class="fail-panel__copy">Restart flow and run summary land in a later slice.</p>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./game.js"></script>
+</body>
+</html>

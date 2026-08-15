@@ -1,0 +1,43 @@
+# Defense-in-depth only. Preferred deploy source is the generated payload:
+#   node scripts/build-frontend-publish.mjs
+#   icp_diff_assets canister=mprew-viaaa-aaaah-quola-cai source_dir=.deploy/frontend-public
+# Do not deploy this project root directly; the broad ignores below reduce blast radius
+# if someone accidentally points an asset upload at the root.
+
+# Internal/source/control directories
+backend/
+docs/
+scripts/
+tasks/
+.openclaw-review/
+.deploy/
+.git/
+.dfx/
+node_modules/
+releases/
+target/
+
+# Project governance / deploy metadata / rollback docs
+CANONICAL.md
+PROJECT.md
+PROJECT_ROOT_STRUCTURE.md
+README_CANONICAL_DEPLOY.md
+ROLLBACK.md
+PHASE_B_VALIDATION.md
+PHASE_C_TOOLING_ALIGNMENT.md
+BLACKHOLE_OPTIMIZATION_POLICY.md
+SESSION_PRICING_POLICY.md
+deploy-manifest.json
+gmai-rereview-*.review.md
+
+# Local/tooling files
+.gitignore
+.gitattributes
+.deployignore
+*.log
+*.jsonl
+*.wasm
+*.wasm.gz
+*.pem
+.env
+.env.*
