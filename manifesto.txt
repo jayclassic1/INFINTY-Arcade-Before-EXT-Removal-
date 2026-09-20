@@ -127,7 +127,7 @@ Auto-generated per User and limited to ten you can redeem for only once.
 ### 4. NFT Submissions
 
 **Existing NFTs:**
-- Cost 0.1 ICP to list in Prize Booth
+- Cost 2 Tokens to list in Prize Booth
 
 **New Mints:**
 - Costs 0.25 ICP to mint

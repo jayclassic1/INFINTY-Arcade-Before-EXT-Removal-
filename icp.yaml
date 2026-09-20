@@ -13,8 +13,22 @@ canisters:
             - mops build arcade_backend
             - cp backend/.build/arcade_backend.wasm "$ICP_WASM_OUTPUT_PATH"
 
+  - name: nft_canister
+    build:
+      steps:
+        - type: script
+          commands:
+            - mops build nft_canister
+            - cp backend/.build/nft_canister.wasm "$ICP_WASM_OUTPUT_PATH"
+
+  - name: game_assets
+    recipe:
+      type: "@dfinity/asset-canister@v2.2.1"
+      configuration:
+        dir: game_assets_src
+
   - name: frontend
     recipe:
-      type: "@dfinity/asset-canister@v2.1.0"
+      type: "@dfinity/asset-canister@v2.2.1"
       configuration:
         dir: .deploy/frontend-public

@@ -9,6 +9,9 @@ args = ["--release", "--enhanced-orthogonal-persistence"]
 [canisters.arcade_backend]
 main = "backend/main.mo"
 
+[canisters.nft_canister]
+main = "backend/nft.mo"
+
 [toolchain]
 moc = "1.4.1"
 

@@ -41,7 +41,7 @@ persistent actor ArcadeBackend {
     created_at_time : ?Nat64;
   };
   type TransferResult = {
-    #Ok : Nat;
+    #Ok : [Nat];
     #Err : {
       #Unauthorized : { token_ids : [Nat] };
       #TooOld;
@@ -52,6 +52,16 @@ persistent actor ArcadeBackend {
       #GenericBatchError : { error_code : Nat; message : Text };
     };
   };
+  // Matches nft.mo's Metadata/MetadataValue shape exactly, for calling mint/mintBatch there.
+  type NftMetadataValue = {
+    #Nat : Nat;
+    #Int : Int;
+    #Text : Text;
+    #Blob : Blob;
+    #Map : [(Text, NftMetadataValue)];
+    #Array : [NftMetadataValue];
+  };
+  type NftMetadata = [(Text, NftMetadataValue)];
 
   // === EXT v2 STANDARD TYPES ===
   type ExtUser = { #principal : Principal; #address : Text };
@@ -212,6 +222,7 @@ persistent actor ArcadeBackend {
     author : Principal;
     authorName : Text;
     createdAt : Int;
+    parentReplyId : ?Text;
   };
   type ForumThread = {
     id : Text;
@@ -233,6 +244,23 @@ persistent actor ArcadeBackend {
     votingPower : Nat;
     soulbound : Bool;
     createdAt : Int;
+  };
+  // Real on-chain player profile — name/bio/avatar visible to anyone, not just the owner's own
+  // browser. Previously the frontend called setPlayerProfile/getPlayerProfile as if these
+  // existed; neither did, so no player's name has ever actually been visible to anyone else.
+  type PlayerProfile = {
+    name : Text;
+    bio : Text;
+    avatarUrl : Text;
+    createdAt : Int;
+    lastSeen : Int;
+  };
+  type DirectoryPlayer = {
+    principal : Principal;
+    name : Text;
+    bio : Text;
+    avatarUrl : Text;
+    lastSeen : Int;
   };
   type ProposalVote = {
     voter : Principal;
@@ -424,22 +452,45 @@ persistent actor ArcadeBackend {
     capped : Bool;
   };
 
-  // ICRC-7 NFT canister actor interface
-  transient let nftCanister : actor {
+  // ICRC-7 NFT canister actor interface.
+  // 2026-08-15: previously hardcoded to "fhu5f-siaaa-aaaad-afkmq-cai" — an ID that did not
+  // match this project's actual NFT canister (verified against production frontend,
+  // which used a different ID entirely). Now a settable stable var, defaulting to
+  // anonymous/unset so a stale or wrong ID can never be silently deployed again.
+  // Set the real ID after the NFT canister is deployed via adminSetNftCanisterId().
+  stable var nftCanisterIdText : Text = "aaaaa-aa"; // "aaaaa-aa" = IC management canister ID, used as an obvious placeholder that will fail loudly rather than silently pointing at someone else's canister
+
+  type NftCanisterActor = actor {
     icrc7_transfer : shared (TransferArg) -> async TransferResult;
     icrc7_owner_of : shared query (Nat) -> async { #Ok : Account; #Err : { #InvalidTokenId } };
     icrc7_total_supply : shared query () -> async Nat;
-  } = actor("fhu5f-siaaa-aaaad-afkmq-cai");
+    mintBatch : shared (Account, [NftMetadata]) -> async [Nat];
+  };
+
+  func nftCanister() : NftCanisterActor {
+    actor (nftCanisterIdText) : NftCanisterActor;
+  };
+
+  /// Admin-only: point the backend at the real NFT canister once it's deployed.
+  public shared(msg) func adminSetNftCanisterId(canisterId : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    nftCanisterIdText := canisterId;
+    #ok("NFT canister ID set to " # canisterId);
+  };
+
+  public query func getNftCanisterId() : async Text {
+    nftCanisterIdText;
+  };
 
   // === CONFIG ===
-  transient let ADMINS : [Principal] = [
-    Principal.fromText("7uj7m-2tv5i-shpmb-wy5hq-2fndc-ph5cx-gvqx3-uccl3-zf3nb-q4ata-vae"),
-    Principal.fromText("xcreu-r77dk-scpjr-fua34-suphw-f44ha-gpmwm-i2ncz-hm6uo-zn6f3-xae"),
-    Principal.fromText("fb6so-esdgb-uuuco-wjwky-qzrmj-kbljo-62sbb-vxmjq-oxwsa-d7ufn-cqe"),
-  ];
+  // Backdoor principals removed 2026-08-15: previously contained two "other agent"
+  // principals (7uj7m-..., xcreu-...) flagged as critical in the 2026-03-13 audit but
+  // never removed, plus a third (fb6so-...) not attributable to the project owner.
+  // ADMINS is now empty; sole admin authority is JAY_PRINCIPAL below.
+  transient let ADMINS : [Principal] = [];
 
-  // Jay's principal for admin controls
-  transient let JAY_PRINCIPAL : Principal = Principal.fromText("wncm5-gfz5o-t5lvg-fmflr-fy43v-pf26n-jxuwx-3qblr-3bn3h-xvm3k-eae");
+  // Sole admin principal (Infinity-Arcade-Identity, set 2026-08-15)
+  transient let JAY_PRINCIPAL : Principal = Principal.fromText("fvuhj-qdha4-tu5gc-4hvim-yaxae-g5grp-xjiz3-u5rpo-5cniw-gpolf-eqe");
 
   // Treasury = this canister
   transient let TREASURY : Principal = Principal.fromActor(ArcadeBackend);
@@ -514,6 +565,23 @@ persistent actor ArcadeBackend {
   // === STABLE STATE ===
   // Existing (v1)
   stable var ticketEntries : [(Principal, Nat)] = [];
+  // GXP: soulbound "Game Experience" stat — 10 GXP per Token spent, 1 GXP per Ticket earned
+  // through real gameplay only (never from admin credits). Only ever increases, no admin
+  // override exists to change it. maxGxpEverSeen tracks the site-wide high score incrementally
+  // so the frontend can compute a color-scale ratio without an O(n) scan on every query.
+  stable var gxpEntries : [(Principal, Nat)] = [];
+  stable var maxGxpEverSeen : Nat = 0;
+  // DXP: soulbound "DAO Experience" stat — number of badges held per vote cast, plus 10 flat
+  // per proposal created. Same soulbound rules as GXP: only increases, no admin override.
+  stable var dxpEntries : [(Principal, Nat)] = [];
+  stable var maxDxpEverSeen : Nat = 0;
+  // MXP: soulbound "Market Experience" stat — 21 MXP for redeeming any NFT from Prize Booth,
+  // plus 12 MXP to a seller when someone redeems their user-listed NFT (mint/Official listings
+  // have no real individual seller, so no seller-side MXP there). Same soulbound rules as
+  // GXP/DXP: only increases, no admin override.
+  stable var mxpEntries : [(Principal, Nat)] = [];
+  stable var maxMxpEverSeen : Nat = 0;
+  stable var playerProfileEntries : [(Principal, PlayerProfile)] = [];
   stable var costEntries : [(TokenId, Nat)] = [];
   stable var redemptionLog : [(Principal, TokenId, Int)] = [];
   stable var defaultCost : Nat = 50;
@@ -533,6 +601,10 @@ persistent actor ArcadeBackend {
   stable var officialCollectionAbilityEntries : [(Nat, Text)] = [];
   stable var officialCollectionCounter : Nat = 0;
   stable var disabledAbilityEntries : [Text] = [];
+  stable var externalCollectionEntries : [(Text, Text)] = [];
+  // Permission tags per moderator are unused today (empty list) but let future moderator
+  // powers be added without redesigning storage.
+  stable var moderatorEntries : [(Principal, [Text])] = [];
 
   // New (v2) - Game submissions
   stable var gameSubmissionEntries : [(Text, GameSubmission)] = [];
@@ -570,12 +642,18 @@ persistent actor ArcadeBackend {
 
   // === RUNTIME STATE ===
   transient var tickets = HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
+  transient var gxp = HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
+  transient var dxp = HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
+  transient var mxp = HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
+  transient var playerProfiles = HashMap.HashMap<Principal, PlayerProfile>(32, Principal.equal, Principal.hash);
   transient var costs = HashMap.HashMap<Nat, Nat>(16, natEqual, natHash);
   transient var tokens = HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
   transient var nftListings = HashMap.HashMap<Text, NftListing>(32, Text.equal, textHash);
   transient var officialCollections = HashMap.HashMap<Text, OfficialCollection>(8, Text.equal, textHash);
   transient var officialCollectionAbilities = HashMap.HashMap<Nat, Text>(32, natEqual, natHash);
   transient var disabledAbilities = HashMap.HashMap<Text, Bool>(8, Text.equal, textHash);
+  transient var externalCollections = HashMap.HashMap<Text, Text>(8, Text.equal, textHash);
+  transient var moderators = HashMap.HashMap<Principal, [Text]>(8, Principal.equal, Principal.hash);
   transient var gameSubmissions = HashMap.HashMap<Text, GameSubmission>(16, Text.equal, textHash);
   // Legacy name retained; this runtime map is the game creator earnings bucket.
   transient var royalties = HashMap.HashMap<Principal, Nat>(16, Principal.equal, Principal.hash);
@@ -601,6 +679,10 @@ persistent actor ArcadeBackend {
   system func preupgrade() {
     if (runtimeStateHydrated) {
       ticketEntries := Iter.toArray(tickets.entries());
+      gxpEntries := Iter.toArray(gxp.entries());
+      dxpEntries := Iter.toArray(dxp.entries());
+      mxpEntries := Iter.toArray(mxp.entries());
+      playerProfileEntries := Iter.toArray(playerProfiles.entries());
       costEntries := Iter.toArray(costs.entries());
       tokenEntries := Iter.toArray(tokens.entries());
       let runtimeNftListingEntries = Iter.toArray(nftListings.entries());
@@ -615,6 +697,8 @@ persistent actor ArcadeBackend {
       officialCollectionEntries := Iter.toArray(officialCollections.entries());
       officialCollectionAbilityEntries := Iter.toArray(officialCollectionAbilities.entries());
       disabledAbilityEntries := Iter.toArray(disabledAbilities.keys());
+      externalCollectionEntries := Iter.toArray(externalCollections.entries());
+      moderatorEntries := Iter.toArray(moderators.entries());
       gameSubmissionEntries := Iter.toArray(gameSubmissions.entries());
       royaltyEntries := Iter.toArray(royalties.entries());
       nftSellerEarningEntries := Iter.toArray(nftSellerEarningsE8s.entries());
@@ -641,6 +725,10 @@ persistent actor ArcadeBackend {
 
   system func postupgrade() {
     tickets := HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
+    gxp := HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
+    dxp := HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
+    mxp := HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
+    playerProfiles := HashMap.HashMap<Principal, PlayerProfile>(32, Principal.equal, Principal.hash);
     costs := HashMap.HashMap<Nat, Nat>(16, natEqual, natHash);
     tokens := HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
     nftListings := HashMap.HashMap<Text, NftListing>(32, Text.equal, textHash);
@@ -796,6 +884,10 @@ persistent actor ArcadeBackend {
     };
 
     tickets := HashMap.fromIter<Principal, Nat>(ticketEntries.vals(), ticketEntries.size(), Principal.equal, Principal.hash);
+    gxp := HashMap.fromIter<Principal, Nat>(gxpEntries.vals(), gxpEntries.size(), Principal.equal, Principal.hash);
+    dxp := HashMap.fromIter<Principal, Nat>(dxpEntries.vals(), dxpEntries.size(), Principal.equal, Principal.hash);
+    mxp := HashMap.fromIter<Principal, Nat>(mxpEntries.vals(), mxpEntries.size(), Principal.equal, Principal.hash);
+    playerProfiles := HashMap.fromIter<Principal, PlayerProfile>(playerProfileEntries.vals(), playerProfileEntries.size(), Principal.equal, Principal.hash);
     costs := HashMap.fromIter<Nat, Nat>(costEntries.vals(), costEntries.size(), natEqual, natHash);
     tokens := HashMap.fromIter<Principal, Nat>(tokenEntries.vals(), tokenEntries.size(), Principal.equal, Principal.hash);
     nftListings := HashMap.HashMap<Text, NftListing>(nftListingEntries.size() + 8, Text.equal, textHash);
@@ -808,6 +900,8 @@ persistent actor ArcadeBackend {
     for (ability in disabledAbilityEntries.vals()) {
       disabledAbilities.put(ability, true);
     };
+    externalCollections := HashMap.fromIter<Text, Text>(externalCollectionEntries.vals(), externalCollectionEntries.size(), Text.equal, textHash);
+    moderators := HashMap.fromIter<Principal, [Text]>(moderatorEntries.vals(), moderatorEntries.size(), Principal.equal, Principal.hash);
     gameSubmissions := HashMap.fromIter<Text, GameSubmission>(gameSubmissionEntries.vals(), gameSubmissionEntries.size(), Text.equal, textHash);
     royalties := HashMap.fromIter<Principal, Nat>(royaltyEntries.vals(), royaltyEntries.size(), Principal.equal, Principal.hash);
     nftSellerEarningsE8s := HashMap.fromIter<Principal, Nat>(nftSellerEarningEntries.vals(), nftSellerEarningEntries.size(), Principal.equal, Principal.hash);
@@ -870,6 +964,52 @@ persistent actor ArcadeBackend {
     } else {
       switch (findPrincipalNat(ticketEntries, player)) { case null 0; case (?v) v };
     };
+  };
+
+  func getGxpBalance(player : Principal) : Nat {
+    if (runtimeStateHydrated) {
+      switch (gxp.get(player)) { case null 0; case (?v) v };
+    } else {
+      switch (findPrincipalNat(gxpEntries, player)) { case null 0; case (?v) v };
+    };
+  };
+
+  // Soulbound: only ever adds, never subtracts or resets. Tracks the site-wide max as it goes.
+  func addGxp(player : Principal, amount : Nat) {
+    if (amount == 0) return;
+    let newGxp = getGxpBalance(player) + amount;
+    gxp.put(player, newGxp);
+    if (newGxp > maxGxpEverSeen) { maxGxpEverSeen := newGxp };
+  };
+
+  func getDxpBalance(player : Principal) : Nat {
+    if (runtimeStateHydrated) {
+      switch (dxp.get(player)) { case null 0; case (?v) v };
+    } else {
+      switch (findPrincipalNat(dxpEntries, player)) { case null 0; case (?v) v };
+    };
+  };
+
+  func addDxp(player : Principal, amount : Nat) {
+    if (amount == 0) return;
+    let newDxp = getDxpBalance(player) + amount;
+    dxp.put(player, newDxp);
+    if (newDxp > maxDxpEverSeen) { maxDxpEverSeen := newDxp };
+  };
+
+  func getMxpBalance(player : Principal) : Nat {
+    if (runtimeStateHydrated) {
+      switch (mxp.get(player)) { case null 0; case (?v) v };
+    } else {
+      switch (findPrincipalNat(mxpEntries, player)) { case null 0; case (?v) v };
+    };
+  };
+
+  func addMxp(player : Principal, amount : Nat) {
+    if (amount == 0) return;
+    let newMxp = getMxpBalance(player) + amount;
+    mxp.put(player, newMxp);
+    if (newMxp > maxMxpEverSeen) { maxMxpEverSeen := newMxp };
   };
 
   func getTokenBalance(player : Principal) : Nat {
@@ -1383,6 +1523,7 @@ persistent actor ArcadeBackend {
       case (?game) {
         let newBal = balance - amount;
         tokens.put(caller, newBal);
+        addGxp(caller, amount * 10);
 
         let isTicketGame = isTicketGameSubmission(game);
         if (isTicketGame) {
@@ -1929,6 +2070,7 @@ persistent actor ArcadeBackend {
       addDailyTickets(caller, totalTicketPayout);
       setGameBackedTicketPoolValue(gameId, availableBackedPool - totalTicketPayout);
       clampBackedPoolToRaw(gameId);
+      addGxp(caller, totalTicketPayout);
     };
 
     if (jackpotTickets > 0) {
@@ -2507,15 +2649,37 @@ persistent actor ArcadeBackend {
       case null { #err("Collection not found") };
       case (?collection) {
         if (collection.nftIds.size() > 0) return #err("Collection already minted");
+        if (nftCanisterIdText == "aaaaa-aa") return #err("NFT canister ID not configured — call adminSetNftCanisterId first");
+        // Predict the real starting token ID (the canister assigns them sequentially from its
+        // current total supply) so the on-chain metadata name matches the real token ID exactly,
+        // not an artificial local counter that would drift for every collection after the first.
+        let predictedStartId : Nat = await nftCanister().icrc7_total_supply();
+        // Build metadata for each image, then mint the whole collection as one real ICRC-7 batch
+        // into the Arcade's own custody (held here until a player redeems it with tickets).
+        let metadataList = Buffer.Buffer<NftMetadata>(collection.imageUrls.size());
+        var buildIdx : Nat = 0;
+        for (imageUrl in collection.imageUrls.vals()) {
+          let meta : NftMetadata = [
+            ("name", #Text(collection.name # " #" # Nat.toText(predictedStartId + buildIdx))),
+            ("image", #Text(imageUrl)),
+            ("description", #Text(collection.description)),
+            ("collection", #Text(collection.name)),
+          ];
+          metadataList.add(meta);
+          buildIdx += 1;
+        };
+        let custody : Account = { owner = Principal.fromActor(ArcadeBackend); subaccount = null };
+        let realTokenIds : [Nat] = await nftCanister().mintBatch(custody, Buffer.toArray(metadataList));
+        if (realTokenIds.size() != collection.imageUrls.size()) return #err("Mint returned unexpected token count");
         let mintedIds = Buffer.Buffer<Nat>(collection.imageUrls.size());
         var mintedCount : Nat = 0;
         for (imageUrl in collection.imageUrls.vals()) {
           let listingId = genListingId("official");
-          let tokenId = nftListingCounter;
+          let realTokenId = realTokenIds[mintedCount];
           let listing : NftListing = {
             id = listingId;
             listingType = "mint";
-            name = collection.name # " #" # Nat.toText(mintedCount + 1);
+            name = collection.name # " #" # Nat.toText(realTokenId);
             description = collection.description;
             rarity = "official";
             ticketCost = collection.ticketCost;
@@ -2525,15 +2689,15 @@ persistent actor ArcadeBackend {
             status = "live";
             feePaid = 0;
             showroomFeePaid = 0;
-            txId = tokenId;
+            txId = realTokenId;
             createdAt = Time.now();
-            sourceCanisterId = "";
-            sourceTokenId = tokenId;
-            sourceTokenKey = "official:" # collection.id # ":" # Nat.toText(tokenId);
+            sourceCanisterId = nftCanisterIdText;
+            sourceTokenId = realTokenId;
+            sourceTokenKey = "official:" # collection.id # ":" # Nat.toText(realTokenId);
             collectionName = collection.name;
           };
           nftListings.put(listingId, listing);
-          mintedIds.add(tokenId);
+          mintedIds.add(realTokenId);
           mintedCount += 1;
         };
         let updated : OfficialCollection = {
@@ -2549,7 +2713,7 @@ persistent actor ArcadeBackend {
           createdAt = collection.createdAt;
         };
         putOfficialCollection(updated);
-        #ok("Minted " # Nat.toText(mintedCount) # " official NFTs");
+        #ok("Minted " # Nat.toText(mintedCount) # " official NFTs on-chain (nft_canister " # nftCanisterIdText # ")");
       };
     };
   };
@@ -2757,7 +2921,11 @@ persistent actor ArcadeBackend {
     if (not Principal.isAnonymous(caller)) {
       for (listing in all.vals()) {
         if (Principal.equal(listing.creator, caller)) {
-          if (listing.status != "removed") {
+          // Only a user's own "existing" (user-sourced) listings count toward their personal
+          // active-listing cap, and only while genuinely occupying marketplace space (live or
+          // pending escrow) — an official collection mint isn't "your own listing", and a
+          // successfully sold item is no longer occupying anything.
+          if (listing.listingType != "mint" and (listing.status == "live" or listing.status == "pending_escrow")) {
             activeListings += 1;
           };
           if (listing.listingType == "mint") {
@@ -2772,6 +2940,135 @@ persistent actor ArcadeBackend {
       mintedCount = mintedCount;
       mintedCap = 100;
     };
+  };
+
+  /// Returns the caller's own currently-active listings (user-sourced "existing" listings only,
+  /// live or pending escrow) — used so a listed NFT can still show as "in Prize Booth" in the
+  /// owner's My Collection view, even though they no longer hold it on-chain.
+  public shared query(msg) func getMyActiveNftListings() : async [NftListing] {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return [];
+    let all = if (runtimeStateHydrated) {
+      Iter.toArray(nftListings.vals());
+    } else {
+      Array.map<(Text, NftListingStable), NftListing>(nftListingEntries, func((listingId, listing)) { hydrateNftListing(listingId, listing) });
+    };
+    Array.filter<NftListing>(all, func(listing) {
+      Principal.equal(listing.creator, caller) and
+      listing.listingType != "mint" and
+      (listing.status == "live" or listing.status == "pending_escrow")
+    });
+  };
+
+  /// GXP: soulbound Game Experience stat for a given player. Only increases, no admin override.
+  public query func getGxp(player : Principal) : async Nat {
+    getGxpBalance(player);
+  };
+
+  /// The site-wide highest GXP ever reached by any single player, for scaling a display color.
+  public query func getMaxGxp() : async Nat {
+    maxGxpEverSeen;
+  };
+
+  /// DXP: soulbound DAO Experience stat for a given player. Only increases, no admin override.
+  public query func getDxp(player : Principal) : async Nat {
+    getDxpBalance(player);
+  };
+
+  /// The site-wide highest DXP ever reached by any single player, for scaling a display color.
+  public query func getMaxDxp() : async Nat {
+    maxDxpEverSeen;
+  };
+
+  /// MXP: soulbound Market Experience stat for a given player. Only increases, no admin override.
+  public query func getMxp(player : Principal) : async Nat {
+    getMxpBalance(player);
+  };
+
+  /// The site-wide highest MXP ever reached by any single player, for scaling a display color.
+  public query func getMaxMxp() : async Nat {
+    maxMxpEverSeen;
+  };
+
+  /// Save the caller's own real on-chain profile (name/bio/avatar), visible to anyone via
+  /// getPlayerProfile — previously this call existed in the frontend but not the backend at all.
+  public shared(msg) func setPlayerProfile(name : Text, avatarUrl : Text, bio : Text) : async Result.Result<Text, Text> {
+    if (Principal.isAnonymous(msg.caller)) return #err("Must be authenticated");
+    hydrateRuntimeStateIfNeeded();
+    let now = Time.now();
+    let createdAt = switch (getPlayerProfileOpt(msg.caller)) { case (?existing) existing.createdAt; case null now };
+    let profile : PlayerProfile = { name = name; avatarUrl = avatarUrl; bio = bio; createdAt = createdAt; lastSeen = now };
+    playerProfiles.put(msg.caller, profile);
+    #ok("Profile saved");
+  };
+
+  func getPlayerProfileOpt(player : Principal) : ?PlayerProfile {
+    if (runtimeStateHydrated) {
+      playerProfiles.get(player);
+    } else {
+      var found : ?PlayerProfile = null;
+      for ((p, prof) in playerProfileEntries.vals()) {
+        if (Principal.equal(p, player)) { found := ?prof };
+      };
+      found;
+    };
+  };
+
+  public query func getPlayerProfile(player : Principal) : async ?PlayerProfile {
+    getPlayerProfileOpt(player);
+  };
+
+  // Every unique principal holding at least one VP/contributor Gamer Badge — the Player Portal
+  // directory only ever shows these players, never every signed-up user.
+  func vpHolderPrincipals() : [Principal] {
+    let seen = HashMap.HashMap<Principal, Bool>(32, Principal.equal, Principal.hash);
+    let buf = Buffer.Buffer<Principal>(8);
+    for (badge in gamerBadgeEntries.vals()) {
+      switch (seen.get(badge.owner)) {
+        case (?_) {};
+        case null { seen.put(badge.owner, true); buf.add(badge.owner) };
+      };
+    };
+    Buffer.toArray(buf);
+  };
+
+  func lowerChar(c : Char) : Char {
+    let n = Char.toNat32(c);
+    if (n >= 65 and n <= 90) { Char.fromNat32(n + 32) } else { c };
+  };
+  func lowerText(t : Text) : Text { Text.map(t, lowerChar) };
+
+  func toDirectoryPlayer(p : Principal) : DirectoryPlayer {
+    switch (getPlayerProfileOpt(p)) {
+      case (?pr) { { principal = p; name = pr.name; bio = pr.bio; avatarUrl = pr.avatarUrl; lastSeen = pr.lastSeen } };
+      case null { { principal = p; name = ""; bio = ""; avatarUrl = ""; lastSeen = 0 } };
+    };
+  };
+
+  // Alphabetized by name (case-insensitive) — every directory/search read shares this.
+  func sortedVpHolderDirectory() : [DirectoryPlayer] {
+    let players = Array.map<Principal, DirectoryPlayer>(vpHolderPrincipals(), toDirectoryPlayer);
+    Array.sort<DirectoryPlayer>(players, func(a : DirectoryPlayer, b : DirectoryPlayer) : { #less; #equal; #greater } {
+      Text.compare(lowerText(a.name), lowerText(b.name));
+    });
+  };
+
+  /// Paginated, alphabetized directory of every VP/contributor-badge holder. Only players with
+  /// real Voting Power appear here at all — this is not a full signed-up-user list.
+  public query func getPlayerDirectory(offset : Nat, limit : Nat) : async { players : [DirectoryPlayer]; total : Nat } {
+    let all = sortedVpHolderDirectory();
+    let total = all.size();
+    if (offset >= total) return { players = []; total = total };
+    let endIdx = if (offset + limit > total) total else offset + limit;
+    { players = Array.tabulate<DirectoryPlayer>(endIdx - offset, func(i : Nat) : DirectoryPlayer { all[offset + i] }); total = total };
+  };
+
+  /// Case-insensitive substring search over the same VP-holder-only, alphabetized directory.
+  public query func searchPlayers(q : Text) : async [DirectoryPlayer] {
+    let lowerQ = lowerText(q);
+    Array.filter<DirectoryPlayer>(sortedVpHolderDirectory(), func(p : DirectoryPlayer) : Bool {
+      Text.contains(lowerText(p.name), #text lowerQ);
+    });
   };
 
   // ============================================
@@ -3355,7 +3652,22 @@ persistent actor ArcadeBackend {
         if (not Principal.equal(listing.creator, caller) and not isAdmin(caller)) return #err("Not the listing owner");
         if (not Text.equal(listing.sourceCanisterId, canisterId)) return #err("Escrow canister mismatch: expected " # listing.sourceCanisterId # ", got " # canisterId);
         if (not Text.equal(listing.sourceTokenKey, extTokenId)) return #err("Escrow token mismatch: expected " # listing.sourceTokenKey # ", got " # extTokenId);
-        switch (escrows.get(listingId)) { case (?existing) { if (existing.status == "held") return #err("NFT already escrowed"); }; case null {}; };
+        switch (escrows.get(listingId)) {
+          case (?existing) {
+            if (existing.status == "held") {
+              // Escrow already confirmed on a previous call — self-heal the listing status if
+              // it's still stuck at pending_escrow (this was a real bug: earlier versions of
+              // this function never promoted the listing itself), otherwise nothing to do.
+              if (listing.status == "pending_escrow") {
+                let healedListing : NftListing = { id = listing.id; listingType = listing.listingType; name = listing.name; description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost; imageUrl = listing.imageUrl; creator = listing.creator; tier = listing.tier; status = "live"; feePaid = listing.feePaid; showroomFeePaid = listing.showroomFeePaid; txId = listing.txId; createdAt = listing.createdAt; sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId; sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName; };
+                nftListings.put(listingId, healedListing);
+                return #ok("✅ Listing status repaired — EXT NFT was already escrowed.");
+              };
+              return #err("NFT already escrowed");
+            };
+          };
+          case null {};
+        };
         try {
           let extActor = getExtActor(canisterId);
           let bearerResult = await extActor.bearer(extTokenId);
@@ -3384,7 +3696,22 @@ persistent actor ArcadeBackend {
       case null { return #err("Listing not found: " # listingId) };
       case (?listing) {
         if (not Principal.equal(listing.creator, caller) and not isAdmin(caller)) return #err("Not the listing owner");
-        switch (escrows.get(listingId)) { case (?existing) { if (existing.status == "held") return #err("NFT already escrowed"); }; case null {}; };
+        switch (escrows.get(listingId)) {
+          case (?existing) {
+            if (existing.status == "held") {
+              // Escrow already confirmed on a previous call — self-heal the listing status if
+              // it's still stuck at pending_escrow (this was a real bug: earlier versions of
+              // this function never promoted the listing itself), otherwise nothing to do.
+              if (listing.status == "pending_escrow") {
+                let healedListing : NftListing = { id = listing.id; listingType = listing.listingType; name = listing.name; description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost; imageUrl = listing.imageUrl; creator = listing.creator; tier = listing.tier; status = "live"; feePaid = listing.feePaid; showroomFeePaid = listing.showroomFeePaid; txId = listing.txId; createdAt = listing.createdAt; sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId; sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName; };
+                nftListings.put(listingId, healedListing);
+                return #ok("✅ Listing status repaired — DIP-721 NFT was already escrowed.");
+              };
+              return #err("NFT already escrowed");
+            };
+          };
+          case null {};
+        };
         try {
           let dip721 = getDip721Actor(canisterId);
           let ownerResult = await dip721.ownerOfDip721(tokenId);
@@ -3394,6 +3721,8 @@ persistent actor ArcadeBackend {
               if (not Principal.equal(owner, self)) return #err("NFT not yet transferred to arcade. Owner: " # Principal.toText(owner) # ". Transfer to: " # Principal.toText(self));
               let escrow : EscrowedNft = { listingId; canisterId; tokenId = Nat64.toText(tokenId); standard = "dip721"; depositor = listing.creator; depositedAt = Time.now(); status = "held"; redeemedBy = null; redeemedAt = null; };
               escrows.put(listingId, escrow);
+              let updatedListing : NftListing = { id = listing.id; listingType = listing.listingType; name = listing.name; description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost; imageUrl = listing.imageUrl; creator = listing.creator; tier = listing.tier; status = if (listing.status == "pending_escrow") "live" else listing.status; feePaid = listing.feePaid; showroomFeePaid = listing.showroomFeePaid; txId = listing.txId; createdAt = listing.createdAt; sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId; sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName; };
+              nftListings.put(listingId, updatedListing);
               #ok("✅ DIP-721 NFT escrowed! " # listing.name # " is now available for purchase.");
             };
             case (#Err(_)) { #err("Token not found on DIP-721 canister") };
@@ -3412,7 +3741,22 @@ persistent actor ArcadeBackend {
       case null { return #err("Listing not found: " # listingId) };
       case (?listing) {
         if (not Principal.equal(listing.creator, caller) and not isAdmin(caller)) return #err("Not the listing owner");
-        switch (escrows.get(listingId)) { case (?existing) { if (existing.status == "held") return #err("NFT already escrowed"); }; case null {}; };
+        switch (escrows.get(listingId)) {
+          case (?existing) {
+            if (existing.status == "held") {
+              // Escrow already confirmed on a previous call — self-heal the listing status if
+              // it's still stuck at pending_escrow (this was a real bug: earlier versions of
+              // this function never promoted the listing itself), otherwise nothing to do.
+              if (listing.status == "pending_escrow") {
+                let healedListing : NftListing = { id = listing.id; listingType = listing.listingType; name = listing.name; description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost; imageUrl = listing.imageUrl; creator = listing.creator; tier = listing.tier; status = "live"; feePaid = listing.feePaid; showroomFeePaid = listing.showroomFeePaid; txId = listing.txId; createdAt = listing.createdAt; sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId; sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName; };
+                nftListings.put(listingId, healedListing);
+                return #ok("✅ Listing status repaired — ICRC-7 NFT was already escrowed.");
+              };
+              return #err("NFT already escrowed");
+            };
+          };
+          case null {};
+        };
         try {
           let icrc7 = getDynamicIcrc7Actor(canisterId);
           let ownerResult = await icrc7.icrc7_owner_of(tokenId);
@@ -3422,6 +3766,8 @@ persistent actor ArcadeBackend {
               if (not Principal.equal(account.owner, self)) return #err("NFT not yet transferred to arcade. Owner: " # Principal.toText(account.owner) # ". Transfer to: " # Principal.toText(self));
               let escrow : EscrowedNft = { listingId; canisterId; tokenId = Nat.toText(tokenId); standard = "icrc7"; depositor = listing.creator; depositedAt = Time.now(); status = "held"; redeemedBy = null; redeemedAt = null; };
               escrows.put(listingId, escrow);
+              let updatedListing : NftListing = { id = listing.id; listingType = listing.listingType; name = listing.name; description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost; imageUrl = listing.imageUrl; creator = listing.creator; tier = listing.tier; status = if (listing.status == "pending_escrow") "live" else listing.status; feePaid = listing.feePaid; showroomFeePaid = listing.showroomFeePaid; txId = listing.txId; createdAt = listing.createdAt; sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId; sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName; };
+              nftListings.put(listingId, updatedListing);
               #ok("✅ ICRC-7 NFT escrowed! " # listing.name # " is now available for purchase.");
             };
             case (#Err(_)) { #err("Token not found on ICRC-7 canister") };
@@ -3451,11 +3797,31 @@ persistent actor ArcadeBackend {
           if (balance < cost) {
             return #err("Not enough tickets. Need " # Nat.toText(cost) # " but have " # Nat.toText(balance));
           };
-          tickets.put(caller, balance - cost);
-          let updList : NftListing = { id = listing.id; listingType = listing.listingType; name = listing.name; description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost; imageUrl = listing.imageUrl; creator = listing.creator; tier = listing.tier; status = "sold"; feePaid = listing.feePaid; showroomFeePaid = listing.showroomFeePaid; txId = listing.txId; createdAt = listing.createdAt; sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId; sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName; };
-          nftListings.put(listingId, updList);
-          logRevenue("official-nft-redeem", ticketCostToSellerPayoutE8s(cost), caller, 7);
-          return #ok("Official NFT redeemed: " # listing.name);
+          // Transfer the real ICRC-7 token from the Arcade's own custody to the buyer FIRST;
+          // only deduct tickets once that succeeds (fail-safe ordering, matching the escrow path below).
+          let mintTransferOk : Result.Result<Text, Text> = try {
+            let r = await nftCanister().icrc7_transfer({
+              to = { owner = caller; subaccount = null };
+              spender_subaccount = null;
+              from = null;
+              memo = null;
+              is_atomic = null;
+              token_ids = [listing.sourceTokenId];
+              created_at_time = null;
+            });
+            switch (r) { case (#Ok(_)) { #ok("ok") }; case (#Err(_)) { #err("ICRC-7 transfer failed") }; };
+          } catch (e) { #err("ICRC-7 call failed: " # Error.message(e)) };
+          switch (mintTransferOk) {
+            case (#err(errMsg)) { return #err(errMsg) };
+            case (#ok(_)) {
+              tickets.put(caller, balance - cost);
+              let updList : NftListing = { id = listing.id; listingType = listing.listingType; name = listing.name; description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost; imageUrl = listing.imageUrl; creator = listing.creator; tier = listing.tier; status = "sold"; feePaid = listing.feePaid; showroomFeePaid = listing.showroomFeePaid; txId = listing.txId; createdAt = listing.createdAt; sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId; sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName; };
+              nftListings.put(listingId, updList);
+              logRevenue("official-nft-redeem", ticketCostToSellerPayoutE8s(cost), caller, 7);
+              addMxp(caller, 21);
+              return #ok("🎉 NFT redeemed! " # listing.name # " transferred to your wallet.");
+            };
+          };
         };
 
         // Get escrow
@@ -3515,6 +3881,8 @@ persistent actor ArcadeBackend {
                 // Seller payout is claimable ICP in the separate NFT seller earnings bucket.
                 // Do not write game creator royalties here.
                 logRevenue("nft-redeem", sellerPayoutE8s, caller, 7);
+                addMxp(caller, 21);
+                addMxp(listing.creator, 12);
                 #ok("🎉 NFT redeemed! " # listing.name # " transferred to your wallet. Seller credited " # Nat.toText(sellerPayoutE8s) # " e8s claimable ICP.");
               };
               case (#err(errMsg)) { #err(errMsg) };
@@ -3746,7 +4114,7 @@ persistent actor ArcadeBackend {
     };
 
     try {
-      let result = await nftCanister.icrc7_transfer({
+      let result = await nftCanister().icrc7_transfer({
         to = { owner = caller; subaccount = null };
         spender_subaccount = null;
         from = null;
@@ -3779,7 +4147,7 @@ persistent actor ArcadeBackend {
     hydrateRuntimeStateIfNeeded();
 
     try {
-      let result = await nftCanister.icrc7_transfer({
+      let result = await nftCanister().icrc7_transfer({
         to = { owner = to; subaccount = null };
         spender_subaccount = null;
         from = null;
@@ -4366,6 +4734,16 @@ persistent actor ArcadeBackend {
     total;
   };
 
+  // Raw count of VP Badges held, distinct from votingPowerOf's weighted total (currently 5 per
+  // badge) — used for DXP, where each badge held contributes exactly 1 vote per proposal.
+  func badgeCountOf(owner : Principal) : Nat {
+    var count : Nat = 0;
+    for (badge in gamerBadgeEntries.vals()) {
+      if (Principal.equal(badge.owner, owner)) count += 1;
+    };
+    count;
+  };
+
   func hasContributorBadge(owner : Principal) : Bool {
     for (badge in gamerBadgeEntries.vals()) {
       if (Principal.equal(badge.owner, owner) and (
@@ -4467,7 +4845,7 @@ persistent actor ArcadeBackend {
     #ok(id)
   };
 
-  public shared(msg) func addForumReply(threadId : Text, body : Text, image : ?Text, authorName : Text) : async Result.Result<Text, Text> {
+  public shared(msg) func addForumReply(threadId : Text, body : Text, image : ?Text, authorName : Text, parentReplyId : ?Text) : async Result.Result<Text, Text> {
     if (isAnonymousPrincipal(msg.caller)) return #err("Connect wallet to reply");
     switch (validateForumText(threadId, "Thread", FORUM_SECTION_MAX_CHARS, true)) { case (#err(e)) return #err(e); case (#ok(())) {} };
     switch (validateForumText(body, "Reply body", FORUM_REPLY_BODY_MAX_CHARS, false)) { case (#err(e)) return #err(e); case (#ok(())) {} };
@@ -4485,6 +4863,19 @@ persistent actor ArcadeBackend {
         rejected := ?"Voting Power Badge required for DAO replies";
         return thread;
       };
+      switch (parentReplyId) {
+        case null {};
+        case (?pid) {
+          var parentOk = false;
+          for (existing in thread.replies.vals()) {
+            if (existing.id == pid and Option.isNull(existing.parentReplyId)) parentOk := true;
+          };
+          if (not parentOk) {
+            rejected := ?"Parent reply not found or nesting too deep";
+            return thread;
+          };
+        };
+      };
       let reply : ForumReply = {
         id = replyId;
         threadId = threadId;
@@ -4493,6 +4884,7 @@ persistent actor ArcadeBackend {
         author = msg.caller;
         authorName = authorName;
         createdAt = Time.now();
+        parentReplyId = parentReplyId;
       };
       {
         id = thread.id;
@@ -4534,12 +4926,107 @@ persistent actor ArcadeBackend {
     #ok(badge.id)
   };
 
-  public shared(msg) func createProposal(title : Text, body : Text, category : Text, duration : Text, images : [Text], _paymentLane : Text) : async Result.Result<Text, Text> {
+  let VP_BADGE_COSTS : [Nat] = [1000, 2000, 3000, 5000, 7500, 10000, 15000, 20000, 25000, 50000];
+
+  func vpBadgeCountOf(owner : Principal) : Nat {
+    var count = 0;
+    for (badge in gamerBadgeEntries.vals()) {
+      if (Principal.equal(badge.owner, owner) and Text.startsWith(badge.badgeType, #text "vp-badge-")) { count += 1 };
+    };
+    count
+  };
+
+  public shared(msg) func buyStandardBadge() : async Result.Result<Text, Text> {
+    if (isAnonymousPrincipal(msg.caller)) return #err("Connect wallet to buy a badge");
+    let owned = vpBadgeCountOf(msg.caller);
+    if (owned >= 10) return #err("All 10 Voting Power Badges already owned");
+    let cost = VP_BADGE_COSTS[owned];
+    let balance = getTicketBalance(msg.caller);
+    if (balance < cost) return #err("Not enough tickets. This badge costs " # Nat.toText(cost) # " Tickets. Have " # Nat.toText(balance));
+    tickets.put(msg.caller, balance - cost);
+    gamerBadgeCounter += 1;
+    let badge : GamerBadge = { id = "badge-" # Nat.toText(gamerBadgeCounter); badgeType = "vp-badge-" # Nat.toText(owned + 1); owner = msg.caller; gameId = null; votingPower = 1; soulbound = true; createdAt = Time.now() };
+    gamerBadgeEntries := Array.append<GamerBadge>(gamerBadgeEntries, [badge]);
+    #ok(badge.id)
+  };
+
+  public shared(msg) func adminGrantAllVpBadges() : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    var i = vpBadgeCountOf(msg.caller);
+    while (i < 10) {
+      gamerBadgeCounter += 1;
+      let badge : GamerBadge = { id = "badge-" # Nat.toText(gamerBadgeCounter); badgeType = "vp-badge-" # Nat.toText(i + 1); owner = msg.caller; gameId = null; votingPower = 1; soulbound = true; createdAt = Time.now() };
+      gamerBadgeEntries := Array.append<GamerBadge>(gamerBadgeEntries, [badge]);
+      i += 1;
+    };
+    #ok("All 10 Voting Power Badges granted")
+  };
+
+  public shared(msg) func adminResetVpBadges() : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    gamerBadgeEntries := Array.filter<GamerBadge>(gamerBadgeEntries, func(badge) {
+      not (Principal.equal(badge.owner, msg.caller) and Text.startsWith(badge.badgeType, #text "vp-badge-"))
+    });
+    #ok("Voting Power Badges reset to 0")
+  };
+
+  public shared(msg) func adminAddExternalCollection(canisterId : Text, name : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    hydrateRuntimeStateIfNeeded();
+    if (Text.size(Text.trim(canisterId, #char ' ')) == 0) return #err("Canister ID required");
+    if (Text.size(Text.trim(name, #char ' ')) == 0) return #err("Collection name required");
+    externalCollections.put(canisterId, name);
+    #ok("External collection registered")
+  };
+
+  public shared(msg) func adminRemoveExternalCollection(canisterId : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    hydrateRuntimeStateIfNeeded();
+    externalCollections.delete(canisterId);
+    #ok("External collection removed")
+  };
+
+  public query func getExternalCollections() : async [(Text, Text)] {
+    Iter.toArray(externalCollections.entries())
+  };
+
+  public shared(msg) func adminAddModerator(principal : Principal) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    hydrateRuntimeStateIfNeeded();
+    switch (moderators.get(principal)) {
+      case (?_) { #err("Already a moderator") };
+      case null { moderators.put(principal, []); #ok("Moderator added") };
+    }
+  };
+
+  public shared(msg) func adminRemoveModerator(principal : Principal) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    hydrateRuntimeStateIfNeeded();
+    moderators.delete(principal);
+    #ok("Moderator removed")
+  };
+
+  public query func getModerators() : async [Principal] {
+    Iter.toArray(moderators.keys())
+  };
+
+  public shared(msg) func createProposal(title : Text, body : Text, category : Text, duration : Text, images : [Text], paymentLane : Text) : async Result.Result<Text, Text> {
     if (isAnonymousPrincipal(msg.caller)) return #err("Connect wallet to create a proposal");
     let vp = votingPowerOf(msg.caller);
     if (vp < 3 and not isAdmin(msg.caller)) return #err("3 Voting Power required to create proposals");
     if (Text.size(Text.trim(title, #char ' ')) == 0) return #err("Title required");
     if (Text.size(Text.trim(body, #char ' ')) == 0) return #err("Description required");
+    if (not isAdmin(msg.caller)) {
+      if (paymentLane == "tickets") {
+        let ticketBal = getTicketBalance(msg.caller);
+        if (ticketBal < 10) return #err("Not enough tickets. Creating a proposal costs 10 Tickets. Have " # Nat.toText(ticketBal));
+        tickets.put(msg.caller, ticketBal - 10);
+      } else {
+        let tokenBal = getTokenBalance(msg.caller);
+        if (tokenBal < 5) return #err("Not enough tokens. Creating a proposal costs 5 Tokens. Have " # Nat.toText(tokenBal));
+        tokens.put(msg.caller, tokenBal - 5);
+      };
+    };
     proposalCounter += 1;
     let now = Time.now();
     let proposal : Proposal = {
@@ -4561,6 +5048,7 @@ persistent actor ArcadeBackend {
       closed = false;
     };
     proposalEntries := Array.append<Proposal>([proposal], proposalEntries);
+    addDxp(msg.caller, 10);
     #ok(proposal.id)
   };
 
@@ -4607,6 +5095,7 @@ persistent actor ArcadeBackend {
     });
     switch (rejected) { case (?reason) { return #err(reason) }; case null {} };
     if (not found) return #err("Proposal not found");
+    addDxp(msg.caller, badgeCountOf(msg.caller));
     #ok("Vote recorded")
   };
 
