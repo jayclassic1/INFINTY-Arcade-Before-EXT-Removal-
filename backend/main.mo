@@ -646,6 +646,71 @@ persistent actor ArcadeBackend {
   transient var dxp = HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
   transient var mxp = HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
   transient var playerProfiles = HashMap.HashMap<Principal, PlayerProfile>(32, Principal.equal, Principal.hash);
+
+  // Forum thread index: getForumThreads was doing a full linear scan + filter over EVERY thread
+  // across ALL sections combined, on every single call — the highest-frequency read in the app,
+  // and one whose cost only ever grows as more threads accumulate over the platform's life.
+  // threadIdsBySection groups thread IDs by section (append-only — a reply never moves a thread
+  // to a different section); threadsById holds each thread's current data, updated in place on
+  // every reply. Lazily built once from forumThreadEntries, independent of the main hydration
+  // flag since the forum system never used it.
+  transient var forumIndexBuilt : Bool = false;
+  transient var threadsById = HashMap.HashMap<Text, ForumThread>(64, Text.equal, textHash);
+  transient var threadIdsBySection = HashMap.HashMap<Text, Buffer.Buffer<Text>>(16, Text.equal, textHash);
+
+  func addThreadToIndex(thread : ForumThread) {
+    threadsById.put(thread.id, thread);
+    switch (threadIdsBySection.get(thread.section)) {
+      case (?bucket) { bucket.add(thread.id) };
+      case null {
+        let bucket = Buffer.Buffer<Text>(8);
+        bucket.add(thread.id);
+        threadIdsBySection.put(thread.section, bucket);
+      };
+    };
+  };
+
+  func ensureForumIndexBuilt() {
+    if (forumIndexBuilt) return;
+    threadsById := HashMap.HashMap<Text, ForumThread>(forumThreadEntries.size() + 8, Text.equal, textHash);
+    threadIdsBySection := HashMap.HashMap<Text, Buffer.Buffer<Text>>(16, Text.equal, textHash);
+    for (thread in forumThreadEntries.vals()) { addThreadToIndex(thread) };
+    forumIndexBuilt := true;
+  };
+
+  // Gamer Badge index: votingPowerOf, badgeCountOf, hasContributorBadge, vpBadgeCountOf,
+  // getGamerBadges, and vpHolderPrincipals (used by the Player Portal directory) all used to
+  // independently re-scan the entire gamerBadgeEntries array on every single call. Badges are
+  // immutable once created (only ever created or removed, never edited in place), so a simple
+  // owner -> [badges] grouping covers every one of these read patterns with no scan needed.
+  transient var badgeIndexBuilt : Bool = false;
+  transient var badgesByOwner = HashMap.HashMap<Principal, Buffer.Buffer<GamerBadge>>(64, Principal.equal, Principal.hash);
+
+  func addBadgeToIndex(badge : GamerBadge) {
+    switch (badgesByOwner.get(badge.owner)) {
+      case (?bucket) { bucket.add(badge) };
+      case null {
+        let bucket = Buffer.Buffer<GamerBadge>(4);
+        bucket.add(badge);
+        badgesByOwner.put(badge.owner, bucket);
+      };
+    };
+  };
+
+  func ensureBadgeIndexBuilt() {
+    if (badgeIndexBuilt) return;
+    badgesByOwner := HashMap.HashMap<Principal, Buffer.Buffer<GamerBadge>>(64, Principal.equal, Principal.hash);
+    for (badge in gamerBadgeEntries.vals()) { addBadgeToIndex(badge) };
+    badgeIndexBuilt := true;
+  };
+
+  func getBadgesForOwner(owner : Principal) : [GamerBadge] {
+    ensureBadgeIndexBuilt();
+    switch (badgesByOwner.get(owner)) {
+      case (?bucket) { Buffer.toArray(bucket) };
+      case null { [] };
+    };
+  };
   transient var costs = HashMap.HashMap<Nat, Nat>(16, natEqual, natHash);
   transient var tokens = HashMap.HashMap<Principal, Nat>(32, Principal.equal, Principal.hash);
   transient var nftListings = HashMap.HashMap<Text, NftListing>(32, Text.equal, textHash);
@@ -3019,17 +3084,11 @@ persistent actor ArcadeBackend {
   };
 
   // Every unique principal holding at least one VP/contributor Gamer Badge — the Player Portal
-  // directory only ever shows these players, never every signed-up user.
+  // directory only ever shows these players, never every signed-up user. Now a direct read of
+  // the badge index's key set instead of a fresh scan of every badge ever created.
   func vpHolderPrincipals() : [Principal] {
-    let seen = HashMap.HashMap<Principal, Bool>(32, Principal.equal, Principal.hash);
-    let buf = Buffer.Buffer<Principal>(8);
-    for (badge in gamerBadgeEntries.vals()) {
-      switch (seen.get(badge.owner)) {
-        case (?_) {};
-        case null { seen.put(badge.owner, true); buf.add(badge.owner) };
-      };
-    };
-    Buffer.toArray(buf);
+    ensureBadgeIndexBuilt();
+    Iter.toArray(badgesByOwner.keys());
   };
 
   func lowerChar(c : Char) : Char {
@@ -4728,29 +4787,23 @@ persistent actor ArcadeBackend {
 
   func votingPowerOf(owner : Principal) : Nat {
     var total : Nat = 0;
-    for (badge in gamerBadgeEntries.vals()) {
-      if (Principal.equal(badge.owner, owner)) total += badge.votingPower;
-    };
+    for (badge in getBadgesForOwner(owner).vals()) { total += badge.votingPower };
     total;
   };
 
   // Raw count of VP Badges held, distinct from votingPowerOf's weighted total (currently 5 per
   // badge) — used for DXP, where each badge held contributes exactly 1 vote per proposal.
   func badgeCountOf(owner : Principal) : Nat {
-    var count : Nat = 0;
-    for (badge in gamerBadgeEntries.vals()) {
-      if (Principal.equal(badge.owner, owner)) count += 1;
-    };
-    count;
+    getBadgesForOwner(owner).size();
   };
 
   func hasContributorBadge(owner : Principal) : Bool {
-    for (badge in gamerBadgeEntries.vals()) {
-      if (Principal.equal(badge.owner, owner) and (
+    for (badge in getBadgesForOwner(owner).vals()) {
+      if (
         badge.badgeType == "dev-contributor" or
         badge.badgeType == "artist-contributor" or
         badge.badgeType == "gashapon-contributor"
-      )) return true;
+      ) return true;
     };
     false;
   };
@@ -4813,9 +4866,20 @@ persistent actor ArcadeBackend {
 
   public shared query (msg) func getForumThreads(section : Text) : async [ForumThread] {
     if (isDaoSection(section) and not hasDaoAccess(msg.caller)) return [];
-    Array.filter<ForumThread>(forumThreadEntries, func(thread) {
-      thread.section == section and publicForumThread(thread)
-    })
+    ensureForumIndexBuilt();
+    switch (threadIdsBySection.get(section)) {
+      case null { [] };
+      case (?bucket) {
+        let result = Buffer.Buffer<ForumThread>(bucket.size());
+        for (id in bucket.vals()) {
+          switch (threadsById.get(id)) {
+            case (?thread) { if (publicForumThread(thread)) { result.add(thread) } };
+            case null {};
+          };
+        };
+        Buffer.toArray(result);
+      };
+    };
   };
 
   public shared(msg) func createForumThread(section : Text, title : Text, body : Text, image : ?Text, authorName : Text) : async Result.Result<Text, Text> {
@@ -4842,6 +4906,8 @@ persistent actor ArcadeBackend {
       deleted = false;
     };
     forumThreadEntries := Array.append<ForumThread>([thread], forumThreadEntries);
+    ensureForumIndexBuilt();
+    addThreadToIndex(thread);
     #ok(id)
   };
 
@@ -4852,8 +4918,10 @@ persistent actor ArcadeBackend {
     switch (validateForumText(authorName, "Author", FORUM_AUTHOR_MAX_CHARS, false)) { case (#err(e)) return #err(e); case (#ok(())) {} };
     let normalizedImage = switch (validateForumImage(msg.caller, image)) { case (#ok(v)) v; case (#err(e)) return #err(e) };
     if (Text.size(Text.trim(body, #char ' ')) == 0 and Option.isNull(normalizedImage)) return #err("Reply body required for text-first forum posting");
+    ensureForumIndexBuilt();
     var found = false;
     var rejected : ?Text = null;
+    var updatedThread : ?ForumThread = null;
     forumThreadCounter += 1;
     let replyId = "reply-" # Nat.toText(forumThreadCounter);
     forumThreadEntries := Array.map<ForumThread, ForumThread>(forumThreadEntries, func(thread) {
@@ -4886,7 +4954,7 @@ persistent actor ArcadeBackend {
         createdAt = Time.now();
         parentReplyId = parentReplyId;
       };
-      {
+      let updated : ForumThread = {
         id = thread.id;
         section = thread.section;
         title = thread.title;
@@ -4897,15 +4965,18 @@ persistent actor ArcadeBackend {
         createdAt = thread.createdAt;
         replies = Array.append<ForumReply>(thread.replies, [reply]);
         deleted = thread.deleted;
-      }
+      };
+      updatedThread := ?updated;
+      updated
     });
     switch (rejected) { case (?reason) { return #err(reason) }; case null {} };
     if (not found) return #err("Thread not found");
+    switch (updatedThread) { case (?t) { threadsById.put(t.id, t) }; case null {} };
     #ok(replyId)
   };
 
   public query func getGamerBadges(owner : Principal) : async [GamerBadge] {
-    Array.filter<GamerBadge>(gamerBadgeEntries, func(badge) { Principal.equal(badge.owner, owner) })
+    getBadgesForOwner(owner);
   };
 
   public query func getVotingPower(owner : Principal) : async Nat { votingPowerOf(owner) };
@@ -4915,6 +4986,8 @@ persistent actor ArcadeBackend {
     gamerBadgeCounter += 1;
     let badge : GamerBadge = { id = "badge-" # Nat.toText(gamerBadgeCounter); badgeType = "dev-contributor"; owner = owner; gameId = ?gameId; votingPower = 5; soulbound = true; createdAt = Time.now() };
     gamerBadgeEntries := Array.append<GamerBadge>(gamerBadgeEntries, [badge]);
+    ensureBadgeIndexBuilt();
+    addBadgeToIndex(badge);
     #ok(badge.id)
   };
 
@@ -4923,6 +4996,8 @@ persistent actor ArcadeBackend {
     gamerBadgeCounter += 1;
     let badge : GamerBadge = { id = "badge-" # Nat.toText(gamerBadgeCounter); badgeType = "artist-contributor"; owner = owner; gameId = null; votingPower = 5; soulbound = true; createdAt = Time.now() };
     gamerBadgeEntries := Array.append<GamerBadge>(gamerBadgeEntries, [badge]);
+    ensureBadgeIndexBuilt();
+    addBadgeToIndex(badge);
     #ok(badge.id)
   };
 
@@ -4930,8 +5005,8 @@ persistent actor ArcadeBackend {
 
   func vpBadgeCountOf(owner : Principal) : Nat {
     var count = 0;
-    for (badge in gamerBadgeEntries.vals()) {
-      if (Principal.equal(badge.owner, owner) and Text.startsWith(badge.badgeType, #text "vp-badge-")) { count += 1 };
+    for (badge in getBadgesForOwner(owner).vals()) {
+      if (Text.startsWith(badge.badgeType, #text "vp-badge-")) { count += 1 };
     };
     count
   };
@@ -4947,6 +5022,8 @@ persistent actor ArcadeBackend {
     gamerBadgeCounter += 1;
     let badge : GamerBadge = { id = "badge-" # Nat.toText(gamerBadgeCounter); badgeType = "vp-badge-" # Nat.toText(owned + 1); owner = msg.caller; gameId = null; votingPower = 1; soulbound = true; createdAt = Time.now() };
     gamerBadgeEntries := Array.append<GamerBadge>(gamerBadgeEntries, [badge]);
+    ensureBadgeIndexBuilt();
+    addBadgeToIndex(badge);
     #ok(badge.id)
   };
 
@@ -4957,6 +5034,8 @@ persistent actor ArcadeBackend {
       gamerBadgeCounter += 1;
       let badge : GamerBadge = { id = "badge-" # Nat.toText(gamerBadgeCounter); badgeType = "vp-badge-" # Nat.toText(i + 1); owner = msg.caller; gameId = null; votingPower = 1; soulbound = true; createdAt = Time.now() };
       gamerBadgeEntries := Array.append<GamerBadge>(gamerBadgeEntries, [badge]);
+      ensureBadgeIndexBuilt();
+      addBadgeToIndex(badge);
       i += 1;
     };
     #ok("All 10 Voting Power Badges granted")
@@ -4967,6 +5046,12 @@ persistent actor ArcadeBackend {
     gamerBadgeEntries := Array.filter<GamerBadge>(gamerBadgeEntries, func(badge) {
       not (Principal.equal(badge.owner, msg.caller) and Text.startsWith(badge.badgeType, #text "vp-badge-"))
     });
+    ensureBadgeIndexBuilt();
+    let remaining = Buffer.Buffer<GamerBadge>(4);
+    for (badge in gamerBadgeEntries.vals()) {
+      if (Principal.equal(badge.owner, msg.caller)) { remaining.add(badge) };
+    };
+    badgesByOwner.put(msg.caller, remaining);
     #ok("Voting Power Badges reset to 0")
   };
 

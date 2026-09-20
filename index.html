@@ -1100,20 +1100,6 @@ window.addEventListener('message', (e) => {
 </div>
 
 <!-- Player Portal Directory -->
-<div id='playerPortalView' style='display:none;margin-top:24px'>
-<div style='display:flex;align-items:center;gap:10px;margin-bottom:14px'>
-<button onclick='closePlayerPortal()' style='background:rgba(0,0,0,.4);border:2px solid rgba(0,170,255,.2);border-radius:8px;color:#00aaff;padding:8px 14px;cursor:pointer;font-size:.85rem;font-weight:700'>Back</button>
-<div>
-<h2 style='margin:0;font-size:1.2rem;color:#00aaff;letter-spacing:2px'>PLAYER PORTAL</h2>
-<div style='font-size:.65rem;color:#3d6090'>Search by player name to discover profiles</div>
-</div>
-</div>
-<div style='margin-bottom:16px'>
-<input id='playerSearchInput' oninput='filterPlayers()' placeholder='Search by name...' style='width:100%;padding:12px 16px;background:rgba(0,0,0,.4);border:1px solid rgba(0,170,255,.2);border-radius:10px;color:#e0e6f0;font-size:.9rem;outline:none;transition:border-color .2s;box-sizing:border-box' onfocus='this.style.borderColor="rgba(0,170,255,.5)"' onblur='this.style.borderColor="rgba(0,170,255,.2)"'/>
-</div>
-<div id='playerPortalList' style='display:flex;flex-direction:column;gap:8px'></div>
-<div id='playerPortalEmpty' style='display:none;text-align:center;padding:40px;color:#3d6090;font-size:.85rem'></div>
-</div>
 
 <!-- DAO Sub-sections View -->
 <div id='forumDaoView' style='display:none'>
@@ -1177,19 +1163,18 @@ window.addEventListener('message', (e) => {
 <h1 style='text-align:center;margin:0 0 20px;font-size:3rem;letter-spacing:10px;text-transform:uppercase;color:#ffd700;text-shadow:0 0 30px rgba(255,215,0,.5),0 0 60px rgba(255,215,0,.2)'>DAO</h1>
 
 <!-- Category Cards -->
+<!-- DAO Treasury Button - now at the very top, above the whole grid -->
+<div onclick='showView("dao-dashboard");loadDaoDashboard()' style='cursor:pointer;background:rgba(15,10,40,.3);backdrop-filter:blur(8px);border:2px solid rgba(167,139,250,.3);border-radius:14px;padding:16px;transition:all .3s;text-align:center;margin-bottom:14px' onmouseenter='this.style.borderColor="rgba(167,139,250,.7)";this.style.background="rgba(15,10,40,.5)";this.style.transform="translateY(-3px)";this.style.boxShadow="0 8px 30px rgba(167,139,250,.2)"' onmouseleave='this.style.borderColor="rgba(167,139,250,.3)";this.style.background="rgba(15,10,40,.3)";this.style.transform="translateY(0)";this.style.boxShadow="none"'>
+<div style='font-weight:900;font-size:1rem;color:#a78bfa;letter-spacing:3px;text-shadow:0 0 10px rgba(167,139,250,.4)'>DAO TREASURY</div>
+<div style='font-size:.65rem;color:#5a7a9a;margin-top:4px'>Live balances, gaming-funded rewards, lottery history</div>
+</div>
+
 <div id='daoCategoryCards' style='display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%'>
 
 <!-- Proposals button (top center, spans full width) -->
 <div onclick='openDaoProposals()' style='grid-column:1/-1;cursor:pointer;background:rgba(60,20,80,.3);backdrop-filter:blur(8px);border:2px solid rgba(192,132,252,.3);border-radius:14px;padding:24px 16px;transition:all .3s;text-align:center' onmouseenter='this.style.borderColor="rgba(192,132,252,.7)";this.style.background="rgba(60,20,80,.5)";this.style.transform="translateY(-3px)";this.style.boxShadow="0 8px 30px rgba(192,132,252,.2)"' onmouseleave='this.style.borderColor="rgba(192,132,252,.3)";this.style.background="rgba(60,20,80,.3)";this.style.transform="translateY(0)";this.style.boxShadow="none"'>
 <div style='font-weight:900;font-size:1.3rem;color:#c084fc;letter-spacing:3px;text-shadow:0 0 15px rgba(192,132,252,.5)'>PROPOSALS</div>
 <div style='font-size:.75rem;color:#7c3aed;margin-top:6px'>View active proposals and submit new ones</div>
-</div>
-
-<!-- Player Portal Button - spans full width inside the grid. DAO Forums is already VP-gated
-     (hasDaoAccess), so simply living here satisfies "only VP holders can view it" for free. -->
-<div id='daoPlayerPortalBtn' onclick='openPlayerPortal()' style='grid-column:1/-1;cursor:pointer;background:linear-gradient(135deg,rgba(255,68,170,.12),rgba(139,92,246,.12));backdrop-filter:blur(8px);border:2px solid rgba(255,68,170,.35);border-radius:14px;padding:24px 16px;transition:all .3s;text-align:center' onmouseenter='this.style.borderColor="rgba(255,68,170,.7)";this.style.background="linear-gradient(135deg,rgba(255,68,170,.22),rgba(139,92,246,.22))";this.style.transform="translateY(-3px)";this.style.boxShadow="0 8px 30px rgba(255,68,170,.2)"' onmouseleave='this.style.borderColor="rgba(255,68,170,.35)";this.style.background="linear-gradient(135deg,rgba(255,68,170,.12),rgba(139,92,246,.12))";this.style.transform="translateY(0)";this.style.boxShadow="none"'>
-<div style='font-weight:900;font-size:1.3rem;color:#ff44aa;letter-spacing:4px;text-shadow:0 0 12px rgba(255,68,170,.4)'>PLAYER PORTAL</div>
-<div style='font-size:.75rem;color:rgba(255,68,170,.7);margin-top:6px'>Search Voting Power holders by name</div>
 </div>
 
 <!-- Row 1: General Discussion (left), Proposal Talk (right) -->
@@ -1230,12 +1215,14 @@ window.addEventListener('message', (e) => {
 <div style='font-weight:900;font-size:1.1rem;color:#ef4444;letter-spacing:2px;text-shadow:0 0 10px rgba(239,68,68,.4)'>Diplomat's Only</div>
 </div>
 
+<!-- Player Portal Button - spans full width, now at the bottom of the grid. DAO Forums is
+     already VP-gated (hasDaoAccess), so simply living here satisfies "only VP holders can view
+     it" for free. -->
+<div id='daoPlayerPortalBtn' onclick="showView('player-portal')" style='grid-column:1/-1;cursor:pointer;background:linear-gradient(135deg,rgba(255,68,170,.12),rgba(139,92,246,.12));backdrop-filter:blur(8px);border:2px solid rgba(255,68,170,.35);border-radius:14px;padding:24px 16px;transition:all .3s;text-align:center' onmouseenter='this.style.borderColor="rgba(255,68,170,.7)";this.style.background="linear-gradient(135deg,rgba(255,68,170,.22),rgba(139,92,246,.22))";this.style.transform="translateY(-3px)";this.style.boxShadow="0 8px 30px rgba(255,68,170,.2)"' onmouseleave='this.style.borderColor="rgba(255,68,170,.35)";this.style.background="linear-gradient(135deg,rgba(255,68,170,.12),rgba(139,92,246,.12))";this.style.transform="translateY(0)";this.style.boxShadow="none"'>
+<div style='font-weight:900;font-size:1.3rem;color:#ff44aa;letter-spacing:4px;text-shadow:0 0 12px rgba(255,68,170,.4)'>PLAYER PORTAL</div>
+<div style='font-size:.75rem;color:rgba(255,68,170,.7);margin-top:6px'>Search Voting Power holders by name</div>
 </div>
 
-<!-- DAO Treasury Button -->
-<div onclick='showView("dao-dashboard");loadDaoDashboard()' style='cursor:pointer;background:rgba(15,10,40,.3);backdrop-filter:blur(8px);border:2px solid rgba(167,139,250,.3);border-radius:14px;padding:16px;transition:all .3s;text-align:center;margin-top:12px' onmouseenter='this.style.borderColor="rgba(167,139,250,.7)";this.style.background="rgba(15,10,40,.5)";this.style.transform="translateY(-3px)";this.style.boxShadow="0 8px 30px rgba(167,139,250,.2)"' onmouseleave='this.style.borderColor="rgba(167,139,250,.3)";this.style.background="rgba(15,10,40,.3)";this.style.transform="translateY(0)";this.style.boxShadow="none"'>
-<div style='font-weight:900;font-size:1rem;color:#a78bfa;letter-spacing:3px;text-shadow:0 0 10px rgba(167,139,250,.4)'>DAO TREASURY</div>
-<div style='font-size:.65rem;color:#5a7a9a;margin-top:4px'>Live balances, gaming-funded rewards, lottery history</div>
 </div>
 
 <!-- DAO Thread View (hidden until section opened) -->
@@ -1275,6 +1262,21 @@ window.addEventListener('message', (e) => {
 </section>
 
 <!-- Profile View -->
+<!-- ====== PLAYER PORTAL (top-level page) ====== -->
+<section class='view' id='view-player-portal' style='min-height:100vh;padding:80px 24px 60px'>
+<div style='max-width:700px;margin:0 auto'>
+<div style='margin-bottom:20px'>
+<h2 style='margin:0;font-size:1.4rem;color:#00aaff;letter-spacing:2px'>PLAYER PORTAL</h2>
+<div style='font-size:.75rem;color:#3d6090;margin-top:4px'>Search Voting Power holders by name</div>
+</div>
+<div style='margin-bottom:16px'>
+<input id='playerSearchInput' oninput='filterPlayers()' placeholder='Search by name...' style='width:100%;padding:12px 16px;background:rgba(0,0,0,.4);border:1px solid rgba(0,170,255,.2);border-radius:10px;color:#e0e6f0;font-size:.9rem;outline:none;transition:border-color .2s;box-sizing:border-box' onfocus='this.style.borderColor="rgba(0,170,255,.5)"' onblur='this.style.borderColor="rgba(0,170,255,.2)"'/>
+</div>
+<div id='playerPortalList' style='display:flex;flex-direction:column;gap:8px'></div>
+<div id='playerPortalEmpty' style='display:none;text-align:center;padding:40px;color:#3d6090;font-size:.85rem'></div>
+</div>
+</section>
+
 <section class='view' id='view-profile' style='padding:0;min-height:100vh;position:relative;overflow:hidden'>
 <div style='position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,#080c18 0%,#0a1428 40%,#0d0520 100%)'></div>
 <div style='position:relative;z-index:1;max-width:800px;margin:0 auto;padding:14px 20px'>
@@ -1354,6 +1356,17 @@ window.addEventListener('message', (e) => {
 </div>
 </section>
 
+<!-- Mandatory Choose-Name Modal (first login only; no close/cancel — name is set once at account creation and never editable afterward) -->
+<div id='chooseNameModal' style='display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.92);backdrop-filter:blur(6px);justify-content:center;align-items:center'>
+<div style='background:#0a1428;border:1px solid rgba(0,170,255,.3);border-radius:16px;max-width:420px;width:92%;padding:32px;text-align:center;box-shadow:0 0 60px rgba(0,0,0,.6)'>
+<h2 style='margin:0 0 8px;font-size:1.3rem;color:#e0e6f0;letter-spacing:1px'>Choose Your Name</h2>
+<div style='font-size:.8rem;color:#5a8ab8;margin-bottom:18px;line-height:1.5'>This is permanent and cannot be changed later. Choose carefully.</div>
+<input id='chooseNameInput' class='wallet-input' placeholder='Your arcade name' maxlength='20' style='text-align:center;font-size:1.1rem;margin-bottom:10px' onkeydown='if(event.key==="Enter")submitChosenName()'/>
+<div id='chooseNameError' style='color:var(--red);font-size:.75rem;min-height:1.2em;margin-bottom:10px'></div>
+<button onclick='submitChosenName()' style='width:100%;padding:14px;background:rgba(0,170,255,.1);border:2px solid var(--cyan,#00aaff);border-radius:10px;color:var(--cyan,#00aaff);font-weight:800;font-size:1rem;cursor:pointer;letter-spacing:1px;transition:all .3s' onmouseenter='this.style.background="rgba(0,170,255,.2)"' onmouseleave='this.style.background="rgba(0,170,255,.1)"'>Confirm</button>
+</div>
+</div>
+
 <!-- Profile Edit Modal -->
 <div id='profileEditModal' onclick='if(event.target===this)closeProfileEdit()' style='display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.85);backdrop-filter:blur(6px);justify-content:center;align-items:center'>
 <div style='background:#0a1428;border:1px solid rgba(0,170,255,.2);border-radius:16px;max-width:620px;width:92%;padding:28px;box-shadow:0 0 60px rgba(0,0,0,.6)'>
@@ -1370,9 +1383,6 @@ window.addEventListener('message', (e) => {
 </div>
 <div style='font-size:.7rem;color:#3d6090;margin-bottom:10px'>Select an NFT from your arcade wallet</div>
 <div id='editAvatarPicker' style='display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-bottom:20px;max-height:220px;overflow-y:auto;padding:4px'></div>
-
-<div style='font-size:.75rem;color:#2d5a8a;letter-spacing:1px;margin-bottom:6px'>PLAYER NAME</div>
-<input class='wallet-input' id='editProfileName' placeholder='Your arcade name' maxlength='20' style='text-align:center;font-size:1.1rem;margin-bottom:16px'/>
 
 <div style='font-size:.75rem;color:#2d5a8a;letter-spacing:1px;margin-bottom:6px'>BIO</div>
 <textarea class='wallet-input' id='editProfileBio' placeholder='Tell people about yourself...' maxlength='200' rows='3' style='font-size:.9rem;font-family:inherit;resize:vertical;margin-bottom:20px'></textarea>
@@ -2861,7 +2871,6 @@ let editAvatarEmoji=null;
 
 async function openProfileEdit(){
   const p=getProfile()||{};
-  qs('editProfileName').value=p.name||'';
   qs('editProfileBio').value=p.bio||'';
   editAvatarUrl=p.avatarUrl||null;
   editAvatarNft=p.avatarNft?normalizeProfileAvatarNft(p.avatarNft):null;
@@ -2911,11 +2920,9 @@ function removeProfilePfp(){
 }
 
 function saveProfileEdit(){
-  const name=qs('editProfileName').value.trim();
-  if(!name){alert('Enter a name');return;}
   const bio=qs('editProfileBio').value.trim();
   const existing=getProfile()||{};
-  saveProfileData({...existing,name,bio,avatarUrl:editAvatarUrl||null,avatarNft:editAvatarNft||null});
+  saveProfileData({...existing,bio,avatarUrl:editAvatarUrl||null,avatarNft:editAvatarNft||null});
   selectedAvatarUrl=editAvatarUrl;
   selectedAvatarNft=editAvatarNft;
   closeProfileEdit();
@@ -3061,6 +3068,41 @@ async function refreshAuthorAvatarCache(principal){
 }
 function getProfileFor(principal){
   try{return JSON.parse(localStorage.getItem('arcade_profile_'+principal));}catch(_){return null;}
+}
+
+// Name is chosen exactly once, at first login, and is never editable afterward (Jay's explicit
+// design: no power to change it later, to keep names meaningful/permanent). Checked on every
+// login (fresh connect and restored session alike) — if the real on-chain profile has no name
+// yet, this blocks with no way to dismiss until one is set.
+async function ensureNameChosen(){
+  try{
+    const be=await getBackendActor(false);
+    const opt=await be.getPlayerProfile(S.principal);
+    const hasName=opt&&opt.length&&opt[0].name&&opt[0].name.trim().length>0;
+    if(!hasName){
+      const modal=qs('chooseNameModal');
+      modal.style.display='flex';
+      qs('chooseNameInput').focus();
+    }
+  }catch(e){console.warn('Name check failed:',e);}
+}
+
+async function submitChosenName(){
+  const input=qs('chooseNameInput');
+  const errEl=qs('chooseNameError');
+  const name=input.value.trim();
+  if(!name){errEl.textContent='Please enter a name.';return;}
+  if(name.length>20){errEl.textContent='Name must be 20 characters or fewer.';return;}
+  errEl.textContent='';
+  try{
+    const be=await getBackendActor(true);
+    const result=await be.setPlayerProfile(name,'','');
+    if(result.err){errEl.textContent=result.err;return;}
+    const existing=getProfile()||{};
+    saveProfileData({...existing,name});
+    qs('chooseNameModal').style.display='none';
+    updateProfileDisplay();
+  }catch(e){errEl.textContent='Failed to save name. Please try again.';}
 }
 
 // View someone else's profile
@@ -3507,6 +3549,7 @@ async function doIILogin(){
     if(typeof updateMobileWallet==='function') updateMobileWallet();
     update();
     updateProfileDisplay();
+    ensureNameChosen();
     if(modal) modal.remove();
     if(!getProfile()){showProfileModal();}
     // Check for jackpot wins
@@ -4155,6 +4198,7 @@ async function initWalletSession(){
     await refreshWalletBalance();
     update();
     updateProfileDisplay();
+    ensureNameChosen();
     checkJackpotNotifications();
     window._authChecking = false;
     // Remove any connect modal that may have appeared during auth check
@@ -8143,7 +8187,7 @@ function safeGamePaymentErrorMessage(e,context){
   const label=String(context||'payment').toLowerCase();
   const normalized=raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
   if(/not enough|insufficient|balance|tokens?|quarters?|funds/i.test(normalized)){
-    return 'Not enough Tokens. Open the wallet and convert ICP to Tokens before starting another session.';
+    return 'Insufficient Funds, Acquire more to Proceed!';
   }
   if(/connect|wallet|login|anonymous|auth|unauth|not connected/i.test(normalized)){
     return 'Connect your wallet before playing.';
@@ -13172,11 +13216,8 @@ async function getUserBadgeTypes(){
 const VETERAN_PORTAL_GXP = 1000; // 10 ICP worth of gameplay (1 token = 1 GXP, 100 tokens = 1 ICP)
 
 let _playerSearchTimeout=null;
-async function openPlayerPortal(){
-  document.getElementById('forumDaoView').style.display='none';
-  document.getElementById('playerPortalView').style.display='block';
-  document.getElementById('playerSearchInput').value='';
-  renderPlayerDirectory();
+function openPlayerPortal(){
+  showView('player-portal');
 }
 function closePlayerPortal(){
   document.getElementById('playerPortalView').style.display='none';
@@ -15107,7 +15148,7 @@ function closeNftDetail(){
   ['showTab',showTab],['renderNftShop',renderNftShop],['renderCollection',renderCollection],['renderCollectionPage',()=>window.renderCollectionPage&&window.renderCollectionPage()],['showCollectionNftDetail',showCollectionNftDetail],['setProfilePfpFromCollectionNft',setProfilePfpFromCollectionNft],['openQuickListNftPopup',openQuickListNftPopup],['quickListOwnedNft',quickListOwnedNft],['redeemNft',redeemNft],['withdrawNft',withdrawNft],
 
   ['showProfileModal',showProfileModal],['pickAvatarNft',pickAvatarNft],['pickAvatarEmoji',pickAvatarEmoji],['saveProfile',saveProfile],['closeProfileModal',closeProfileModal],
-  ['openPlayerPortal',openPlayerPortal],['closePlayerPortal',closePlayerPortal],['filterPlayers',filterPlayers],['openVeteranPortal',openVeteranPortal],['openForumSection',openForumSection],['closeForumSection',closeForumSection],['buyVpNft',buyVpNft],['openThreadDetail',openThreadDetail],['closeThreadDetail',closeThreadDetail],['scanWalletBtn',scanWalletBtn],['renderProfileView',renderProfileView],['openProfileEdit',openProfileEdit],['closeProfileEdit',closeProfileEdit],['saveProfileEdit',saveProfileEdit],['pickEditAvatar',pickEditAvatar],['removeProfilePfp',removeProfilePfp],['openShowroomEdit',openShowroomEdit],['closeShowroomEdit',closeShowroomEdit],['saveShowroomEdit',saveShowroomEdit],['toggleShowroomNft',toggleShowroomNft],['viewPublicProfile',viewPublicProfile],['registerPublicPresence',registerPublicPresence],['showBanOverlay',showBanOverlay],['adminBanUser',adminBanUser],['adminUnban',adminUnban],['renderBanList',renderBanList],['showBanUserModal',showBanUserModal],['showNewPostForm',showNewPostForm],['hideNewPostForm',hideNewPostForm],['submitForumPost',submitForumPost],['toggleReplies',toggleReplies],['showReplyForm',showReplyForm],['submitReply',submitReply],['toggleNestedReplies',toggleNestedReplies],['toggleNestedReplyBox',toggleNestedReplyBox],['deletePost',deletePost],['deleteReply',deleteReply],['adminAddMod',adminAddMod],['adminRemoveMod',adminRemoveMod],['renderModList',renderModList],['adminAddBoost',adminAddBoost],['adminRemoveBoost',adminRemoveBoost],['renderBoostList',renderBoostList],['quickBoostGame',quickBoostGame],['openDaoView',openDaoView],['closeDaoView',closeDaoView],['showDaoRestricted',showDaoRestricted],['openDaoSection',openDaoSection],['closeDaoSection',closeDaoSection],['renderDaoPage',renderDaoPage],['openDaoProposals',openDaoProposals],['closeDaoProposals',closeDaoProposals],['renderDaoThreadList',renderDaoThreadList],['closeDaoThreadDetail',closeDaoThreadDetail],['showDaoNewThread',showDaoNewThread],['hideDaoNewThread',hideDaoNewThread],['submitDaoThread',submitDaoThread],['openDaoThread',openDaoThread],['submitDaoReply',submitDaoReply],['deleteDaoPost',deleteDaoPost],['deleteDaoReply',deleteDaoReply],['renderDaoMain',renderDaoMain],['rescanEditProfileNfts',rescanEditProfileNfts],['showCreateProposal',showCreateProposal],['hideCreateProposal',hideCreateProposal],['submitProposal',submitProposal],['castVote',castVote],['viewProposal',viewProposal],['submitProposalReply',submitProposalReply],['deleteProposal',deleteProposal],['saveAdminResponse',saveAdminResponse],['removeAdminResponse',removeAdminResponse],['previewProposalImages',previewProposalImages],['removeProposalImage',removeProposalImage],['viewProposalImage',viewProposalImage],
+  ['openPlayerPortal',openPlayerPortal],['closePlayerPortal',closePlayerPortal],['filterPlayers',filterPlayers],['openVeteranPortal',openVeteranPortal],['openForumSection',openForumSection],['closeForumSection',closeForumSection],['buyVpNft',buyVpNft],['openThreadDetail',openThreadDetail],['closeThreadDetail',closeThreadDetail],['scanWalletBtn',scanWalletBtn],['renderProfileView',renderProfileView],['openProfileEdit',openProfileEdit],['closeProfileEdit',closeProfileEdit],['saveProfileEdit',saveProfileEdit],['pickEditAvatar',pickEditAvatar],['submitChosenName',submitChosenName],['removeProfilePfp',removeProfilePfp],['openShowroomEdit',openShowroomEdit],['closeShowroomEdit',closeShowroomEdit],['saveShowroomEdit',saveShowroomEdit],['toggleShowroomNft',toggleShowroomNft],['viewPublicProfile',viewPublicProfile],['registerPublicPresence',registerPublicPresence],['showBanOverlay',showBanOverlay],['adminBanUser',adminBanUser],['adminUnban',adminUnban],['renderBanList',renderBanList],['showBanUserModal',showBanUserModal],['showNewPostForm',showNewPostForm],['hideNewPostForm',hideNewPostForm],['submitForumPost',submitForumPost],['toggleReplies',toggleReplies],['showReplyForm',showReplyForm],['submitReply',submitReply],['toggleNestedReplies',toggleNestedReplies],['toggleNestedReplyBox',toggleNestedReplyBox],['deletePost',deletePost],['deleteReply',deleteReply],['adminAddMod',adminAddMod],['adminRemoveMod',adminRemoveMod],['renderModList',renderModList],['adminAddBoost',adminAddBoost],['adminRemoveBoost',adminRemoveBoost],['renderBoostList',renderBoostList],['quickBoostGame',quickBoostGame],['openDaoView',openDaoView],['closeDaoView',closeDaoView],['showDaoRestricted',showDaoRestricted],['openDaoSection',openDaoSection],['closeDaoSection',closeDaoSection],['renderDaoPage',renderDaoPage],['openDaoProposals',openDaoProposals],['closeDaoProposals',closeDaoProposals],['renderDaoThreadList',renderDaoThreadList],['closeDaoThreadDetail',closeDaoThreadDetail],['showDaoNewThread',showDaoNewThread],['hideDaoNewThread',hideDaoNewThread],['submitDaoThread',submitDaoThread],['openDaoThread',openDaoThread],['submitDaoReply',submitDaoReply],['deleteDaoPost',deleteDaoPost],['deleteDaoReply',deleteDaoReply],['renderDaoMain',renderDaoMain],['rescanEditProfileNfts',rescanEditProfileNfts],['showCreateProposal',showCreateProposal],['hideCreateProposal',hideCreateProposal],['submitProposal',submitProposal],['castVote',castVote],['viewProposal',viewProposal],['submitProposalReply',submitProposalReply],['deleteProposal',deleteProposal],['saveAdminResponse',saveAdminResponse],['removeAdminResponse',removeAdminResponse],['previewProposalImages',previewProposalImages],['removeProposalImage',removeProposalImage],['viewProposalImage',viewProposalImage],
   ['updateProfileDisplay',updateProfileDisplay],['uploadGamePreview',uploadGamePreview],['uploadGameToChain',uploadGameToChain],['refreshAdminGameUpdateSelect',refreshAdminGameUpdateSelect],['loadAdminGameUpdateTarget',loadAdminGameUpdateTarget],['selectAdminGameUpdateTarget',selectAdminGameUpdateTarget],['adminRegisterGame',adminRegisterGame],['deleteGameFromChain',deleteGameFromChain],['adminGiveAllVp',adminGiveAllVp],['loadTreasuryInfo',loadTreasuryInfo],['fillMaxTreasuryWithdraw',fillMaxTreasuryWithdraw],['adminWithdrawTreasury',adminWithdrawTreasury],['copyCommonOperatingWithdrawAddress',copyCommonOperatingWithdrawAddress],['loadDaoTreasuryAdmin',loadDaoTreasuryAdmin],['adminBurnDaoTokensFn',adminBurnDaoTokensFn],['adminBurnDaoTicketsFn',adminBurnDaoTicketsFn],['adminTransferDaoTokensFn',adminTransferDaoTokensFn],['adminTransferDaoTicketsFn',adminTransferDaoTicketsFn],['adminResetVp',adminResetVp],['adminAwardDevBadge',adminAwardDevBadge],['adminAwardArtistBadge',adminAwardArtistBadge],['adminRevokeBadge',adminRevokeBadge],['adminTestLottery',adminTestLottery],['checkJackpotNotifications',checkJackpotNotifications],['showJackpotPopup',showJackpotPopup],['openCollectionBrowser',openCollectionBrowser],['openCollectionManager',openCollectionManager],['adminToggleGrail',adminToggleGrail],['adminToggleSpotlight',adminToggleSpotlight],['adminSetCollectionTag',adminSetCollectionTag],['adminEditNftPrice',adminEditNftPrice],['adminEditNftAbility',adminEditNftAbility],['adminClearNftAbility',adminClearNftAbility],['openAbilityPicker',openAbilityPicker],['applyAbilityToTokens',applyAbilityToTokens],['clearAbilityFromTokens',clearAbilityFromTokens],['colMgrSelectAll',colMgrSelectAll],['colMgrDeselectAll',colMgrDeselectAll],['colMgrAssignSelected',colMgrAssignSelected],['openBulkAbilityAssign',openBulkAbilityAssign],['openDisabledAbilities',openDisabledAbilities],['toggleAbilityState',toggleAbilityState],['adminCreateCollection',adminCreateCollection],['adminLoadCollections',adminLoadCollections],['adminMintCollection',adminMintCollection],['adminDeleteCol',adminDeleteCol],
   ['runTreasuryScan',runTreasuryScan],
   ['showNftDetail',showNftDetail],['closeNftDetail',closeNftDetail],
@@ -15156,6 +15197,11 @@ function showViewHooked(v){
   // DAO view - no longer hides nav buttons
   if(v==='dao'){if(!S.connected||getUserVpCount()<1){showViewHooked('landing');arcadeConfirm('Restricted','You need at least 1 Voting Power Badge to access the DAO Boardroom.');return;}renderDaoPage();}
   if(v==='profile') renderProfileView();
+  if(v==='player-portal'){
+    if(!S.connected||getUserVpCount()<1){showViewHooked('landing');arcadeConfirm('Restricted','You need at least 1 Voting Power Badge to access the Player Portal.');return;}
+    qs('playerSearchInput').value='';
+    renderPlayerDirectory();
+  }
   if(v==='devdash') renderDevDash();
   if(v==='legal-tos') renderLegalPage('tos');
   if(v==='legal-privacy') renderLegalPage('privacy');
