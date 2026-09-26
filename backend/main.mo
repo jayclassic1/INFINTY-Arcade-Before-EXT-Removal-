@@ -63,33 +63,6 @@ persistent actor ArcadeBackend {
   };
   type NftMetadata = [(Text, NftMetadataValue)];
 
-  // === EXT v2 STANDARD TYPES ===
-  type ExtUser = { #principal : Principal; #address : Text };
-  type ExtTransferRequest = {
-    from : ExtUser;
-    to : ExtUser;
-    token : Text; // TokenIdentifier
-    amount : Nat;
-    memo : Blob;
-    notify : Bool;
-    subaccount : ?[Nat8];
-  };
-  type ExtTransferResponse = {
-    #ok : Nat;
-    #err : {
-      #Unauthorized : Text;
-      #InsufficientBalance;
-      #Rejected;
-      #InvalidToken : Text;
-      #CannotNotify : Text;
-      #Other : Text;
-    };
-  };
-  type ExtBearerResponse = {
-    #ok : Text; // AccountIdentifier
-    #err : { #InvalidToken : Text; #Other : Text };
-  };
-
   // === DIP-721 STANDARD TYPES ===
   type Dip721TransferResult = {
     #Ok : Nat;
@@ -125,7 +98,7 @@ persistent actor ArcadeBackend {
     listingId : Text;
     canisterId : Text; // source canister (EXT or ICRC-7)
     tokenId : Text; // token identifier (EXT text or ICRC-7 numeric as text)
-    standard : Text; // "ext" or "icrc7"
+    standard : Text; // "icrc7" or "dip721"
     depositor : Principal; // who deposited (creator)
     depositedAt : Int;
     status : Text; // "held", "redeemed", "returned"
@@ -212,6 +185,41 @@ persistent actor ArcadeBackend {
     createdAt : Int;
   };
 
+  // Chunked zip-upload queue for user-submitted game zips (The Back and Showroom).
+  // Submitters upload directly into arcade_backend's own storage (the only canister every
+  // authenticated user can freely call) since only the admin identity has write permission on the
+  // real game_assets hosting canister. Admin then downloads and personally reviews the zip before
+  // manually publishing it via the existing admin-only "Upload Game to Chain" tool — this queue
+  // deliberately does not auto-publish anything.
+  // Simple per-user notification for submission accept/reject events, so a submitter gets a
+  // real popup next time they load the app rather than silently wondering what happened.
+  type UserNotification = {
+    id : Text;
+    recipient : Principal;
+    title : Text;
+    message : Text;
+    gameId : Text;
+    createdAt : Int;
+    seen : Bool;
+  };
+
+  type PendingZipUpload = {
+    id : Text;
+    gameId : Text; // the GameSubmission this file belongs to
+    submitter : Principal;
+    tier : Text; // "backroom" or "showroom", carried for the admin queue's own display/filtering
+    // filename is prefixed "thumbnail::" or "zip::" to distinguish purpose without a stable-type
+    // shape change — this type was already deployed once without a dedicated field, and adding
+    // one on a second deploy trips Motoko's memory-incompatible-upgrade guard on the existing
+    // stable data. A new field can still be added safely on a genuinely fresh reinstall later.
+    filename : Text;
+    totalBytes : Nat;
+    chunkCount : Nat;
+    receivedChunks : Nat;
+    status : Text; // "uploading", "ready", "downloaded"
+    createdAt : Int;
+  };
+
 
   // Shared forum / DAO proposal types (additive stable state, advisory only).
   type ForumReply = {
@@ -235,6 +243,42 @@ persistent actor ArcadeBackend {
     createdAt : Int;
     replies : [ForumReply];
     deleted : Bool;
+  };
+  type HoleSubmission = {
+    id : Text;
+    title : Text;
+    description : Text;
+    url : Text;
+    creator : Principal;
+    creatorNameSnapshot : Text;
+    createdAt : Int;
+    upvotes : Nat;
+    status : Text; // "active" | "deleted" (punishment-related statuses added later)
+    isLegendary : Bool;
+  };
+  type HolePunishment = {
+    principal : Principal;
+    until : Int; // ignored when permanent is true
+    permanent : Bool;
+    reason : Text;
+  };
+  type HoleVote = {
+    submissionId : Text;
+    voter : Principal;
+    isLike : Bool;
+    timestamp : Int;
+  };
+  // Real, backend-persisted replacement for the old localStorage-only game like/dislike system —
+  // that version never left the browser it was cast in, so no vote ever actually reached other
+  // users; "Most Upvoted" never reflected real community sentiment. Toggleable (unlike Blackhole's
+  // permanent vote), matching the existing frontend UX: clicking the same vote again removes it,
+  // clicking the other one changes it. Open to any connected user, no Voting Power gate — this is
+  // a lightweight community signal on The Back, not a DAO governance action like Blackhole's.
+  type GameVote = {
+    gameId : Text;
+    voter : Principal;
+    isLike : Bool;
+    timestamp : Int;
   };
   type GamerBadge = {
     id : Text;
@@ -531,8 +575,10 @@ persistent actor ArcadeBackend {
   transient let NFT_LISTING_FEE_TOKENS : Nat = 2;
   transient let NFT_LISTING_FEE_E8S : Nat = NFT_LISTING_FEE_TOKENS * TOKEN_LIABILITY_E8S;
 
-  // Backend canister's own account identifier (for EXT bearer verification).
-  // This must match the default EXT AccountIdentifier for pifyq-raaaa-aaaab-agrqq-cai.
+  // Backend canister's own default account identifier, used as the "protected" Treasury lane
+  // account (see getTreasuryLaneSnapshot). Also matches the default AccountIdentifier for
+  // pifyq-raaaa-aaaab-agrqq-cai from when this was additionally used for EXT bearer
+  // verification, before EXT NFT standard support was removed.
   transient let SELF_ACCOUNT_ID : Text = "2b239054e41a561e39350c1e86fa53f97ba4acf8b40600574ea965ac11164ebb";
 
   // Operating Treasury lane: backend-owned subaccount derived from the literal
@@ -545,22 +591,29 @@ persistent actor ArcadeBackend {
     117, 114, 121, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
   ]);
-
-  func arcadeExtAccountId() : Text {
-    SELF_ACCOUNT_ID
-  };
-
-  func extHoldMismatchMessage(accountId : Text) : Text {
-    "Arcade does not hold this EXT NFT. Bearer: " # accountId # ". Expected/current arcade account: " # arcadeExtAccountId() # ". Backend principal: " # Principal.toText(Principal.fromActor(ArcadeBackend))
-  };
-
-  // Create dynamic EXT actor for any canister
-  func getExtActor(canisterId : Text) : actor {
-    bearer : shared query (Text) -> async ExtBearerResponse;
-    transfer : shared (ExtTransferRequest) -> async ExtTransferResponse;
-  } {
-    actor(canisterId);
-  };
+  // Dedicated Blackhole submission-fee subaccount, distinct from the shared Operating Treasury —
+  // built so Blackhole's earnings/withdrawals stay separately trackable once other features
+  // (Showroom, The Back) get their own real-ICP fees and subaccounts too.
+  transient let BLACKHOLE_TREASURY_SUBACCOUNT : Blob = Blob.fromArray([
+    18, 98, 108, 97, 99, 107, 104, 111,
+    108, 101, 45, 116, 114, 101, 97, 115,
+    117, 114, 121, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+  ]);
+  // Dedicated The Back submission-fee subaccount, same reasoning as the Blackhole one — kept
+  // separate so each feature's earnings/withdrawals stay independently trackable.
+  transient let BACK_TREASURY_SUBACCOUNT : Blob = Blob.fromArray([
+    13, 98, 97, 99, 107, 45, 116, 114,
+    101, 97, 115, 117, 114, 121, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+  ]);
+  transient let SHOWROOM_TREASURY_SUBACCOUNT : Blob = Blob.fromArray([
+    17, 115, 104, 111, 119, 114, 111, 111,
+    109, 45, 116, 114, 101, 97, 115, 117,
+    114, 121, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+  ]);
 
   // === STABLE STATE ===
   // Existing (v1)
@@ -609,6 +662,8 @@ persistent actor ArcadeBackend {
   // New (v2) - Game submissions
   stable var gameSubmissionEntries : [(Text, GameSubmission)] = [];
   stable var gameSubmissionCounter : Nat = 0;
+  stable var zipUploadCounter : Nat = 0;
+  stable var notificationCounter : Nat = 0;
 
   // New (v2) - Revenue log
   stable var revenueLogEntries : [RevenueEvent] = [];
@@ -616,6 +671,27 @@ persistent actor ArcadeBackend {
   // New (v2) - Legacy game creator royalty balances (ICP e8s).
   // Phase 2 keeps this stable shape for migration compatibility and treats it as game creator earnings.
   stable var royaltyEntries : [(Principal, Nat)] = [];
+  // Separate claimable pool for Token-based creator tips, distinct from royalties (game-token-spend earnings).
+  stable var tipEarningsEntries : [(Principal, Nat)] = [];
+  stable var pendingZipUploadEntries : [(Text, PendingZipUpload)] = [];
+  stable var zipChunkEntries : [(Text, Blob)] = []; // key = uploadId # "#" # Nat.toText(chunkIndex)
+  stable var notificationEntries : [(Text, UserNotification)] = [];
+  // Category is stored separately (not on GameSubmission itself) since that stable type has
+  // already been deployed multiple times tonight — adding a field now would trip the same
+  // memory-incompatible-upgrade trap hit earlier with PendingZipUpload's purpose field.
+  stable var gameCategoryEntries : [(Text, Text)] = []; // gameId -> category
+  // Same reasoning as gameCategoryEntries/gamePricingEntries above: this cannot live as new fields
+  // on GameSubmission (confirmed unsafe under this project's enhanced-orthogonal-persistence build,
+  // even for optional fields), so it gets its own stable map. Tuple order: (keyboardOnly,
+  // keyboardAndMouse, controllerReady, madeWithAi). Set by the submitter at submission time or any
+  // time by admin, same auth pattern as category.
+  stable var gameAccessibilityEntries : [(Text, (Bool, Bool, Bool, Bool))] = [];
+  // Same reasoning as gameCategoryEntries above: pricing lives in its own stable map rather than
+  // as fields on GameSubmission, since that record type cannot safely gain new fields at all under
+  // this project's enhanced-orthogonal-persistence build (confirmed directly: even a new *optional*
+  // field on GameSubmission trapped with "Memory-incompatible program upgrade" when attempted).
+  // 0 in either slot of the tuple means "not set" (mirrors adminAddGame's existing convention).
+  stable var gamePricingEntries : [(Text, (Nat, Nat))] = []; // gameId -> (tokenCost, purchasePrice)
 
   // New (v6) - NFT seller earnings (ICP e8s). Separate from game creator earnings and refunds.
   stable var nftSellerEarningEntries : [(Principal, Nat)] = [];
@@ -635,6 +711,19 @@ persistent actor ArcadeBackend {
   // not change existing stable record shapes.
   stable var forumThreadEntries : [ForumThread] = [];
   stable var forumThreadCounter : Nat = 0;
+  stable var holeSubmissionEntries : [HoleSubmission] = [];
+  stable var holeSubmissionCounter : Nat = 0;
+  let HOLE_SUBMISSION_FEE_E8S : Nat = 100_000_000; // 1 ICP
+  let BACK_SUBMISSION_FEE_E8S : Nat = 1_000_000_000; // 10 ICP
+  let SHOWROOM_SUBMISSION_FEE_E8S : Nat = 2_500_000_000; // 25 ICP
+  let MAX_ZIP_TOTAL_BYTES : Nat = 10 * 1024 * 1024; // 10MB, matches the existing admin upload tool's limit
+  let MAX_ZIP_CHUNK_BYTES : Nat = 1_800_000; // ~1.8MB, safely under the IC's ~2MB per-call argument limit
+  let MAX_PENDING_ZIP_UPLOADS_PER_USER : Nat = 6; // 2 uploads (zip+thumbnail) per game submission, so this allows up to 3 pending game submissions per user — was 3, which meant a user could never complete a second submission (its zip would use the last slot, then its thumbnail upload would fail)
+  let MAX_THUMBNAIL_UPLOAD_BYTES : Nat = 2 * 1024 * 1024; // 2MB, matches the existing thumbnail cap
+  stable var holePunishmentEntries : [HolePunishment] = [];
+  let HOLE_SOFT_PUNISH_NS : Int = 7 * 24 * 60 * 60 * 1_000_000_000; // 7 days in nanoseconds
+  stable var holeVoteEntries : [HoleVote] = [];
+  stable var gameVoteEntries : [GameVote] = [];
   stable var gamerBadgeEntries : [GamerBadge] = [];
   stable var gamerBadgeCounter : Nat = 0;
   stable var proposalEntries : [Proposal] = [];
@@ -722,6 +811,13 @@ persistent actor ArcadeBackend {
   transient var gameSubmissions = HashMap.HashMap<Text, GameSubmission>(16, Text.equal, textHash);
   // Legacy name retained; this runtime map is the game creator earnings bucket.
   transient var royalties = HashMap.HashMap<Principal, Nat>(16, Principal.equal, Principal.hash);
+  transient var tipEarnings = HashMap.HashMap<Principal, Nat>(16, Principal.equal, Principal.hash);
+  transient var pendingZipUploads = HashMap.HashMap<Text, PendingZipUpload>(16, Text.equal, textHash);
+  transient var zipChunks = HashMap.HashMap<Text, Blob>(64, Text.equal, textHash);
+  transient var notifications = HashMap.HashMap<Text, UserNotification>(32, Text.equal, textHash);
+  transient var gameCategories = HashMap.HashMap<Text, Text>(32, Text.equal, textHash);
+  transient var gameAccessibility = HashMap.HashMap<Text, (Bool, Bool, Bool, Bool)>(32, Text.equal, textHash);
+  transient var gamePricing = HashMap.HashMap<Text, (Nat, Nat)>(32, Text.equal, textHash);
   transient var nftSellerEarningsE8s = HashMap.HashMap<Principal, Nat>(16, Principal.equal, Principal.hash);
   transient var refundsE8s = HashMap.HashMap<Principal, Nat>(16, Principal.equal, Principal.hash);
   transient var escrows = HashMap.HashMap<Text, EscrowedNft>(16, Text.equal, textHash);
@@ -739,6 +835,9 @@ persistent actor ArcadeBackend {
   transient let ICP_LEDGER_FEE_E8S : Nat = 10_000;
   transient let ICP_TIP_MIN_E8S : Nat = 10_000;
   transient var operatingTreasuryWithdrawalInFlight = false;
+  transient var blackholeTreasuryWithdrawalInFlight = false;
+  transient var backTreasuryWithdrawalInFlight = false;
+  transient var showroomTreasuryWithdrawalInFlight = false;
 
   // === UPGRADE HOOKS ===
   system func preupgrade() {
@@ -766,6 +865,13 @@ persistent actor ArcadeBackend {
       moderatorEntries := Iter.toArray(moderators.entries());
       gameSubmissionEntries := Iter.toArray(gameSubmissions.entries());
       royaltyEntries := Iter.toArray(royalties.entries());
+      tipEarningsEntries := Iter.toArray(tipEarnings.entries());
+      pendingZipUploadEntries := Iter.toArray(pendingZipUploads.entries());
+      zipChunkEntries := Iter.toArray(zipChunks.entries());
+      notificationEntries := Iter.toArray(notifications.entries());
+      gameCategoryEntries := Iter.toArray(gameCategories.entries());
+      gameAccessibilityEntries := Iter.toArray(gameAccessibility.entries());
+      gamePricingEntries := Iter.toArray(gamePricing.entries());
       nftSellerEarningEntries := Iter.toArray(nftSellerEarningsE8s.entries());
       refundEntries := Iter.toArray(refundsE8s.entries());
       escrowEntries := Iter.toArray(escrows.entries());
@@ -969,6 +1075,13 @@ persistent actor ArcadeBackend {
     moderators := HashMap.fromIter<Principal, [Text]>(moderatorEntries.vals(), moderatorEntries.size(), Principal.equal, Principal.hash);
     gameSubmissions := HashMap.fromIter<Text, GameSubmission>(gameSubmissionEntries.vals(), gameSubmissionEntries.size(), Text.equal, textHash);
     royalties := HashMap.fromIter<Principal, Nat>(royaltyEntries.vals(), royaltyEntries.size(), Principal.equal, Principal.hash);
+    tipEarnings := HashMap.fromIter<Principal, Nat>(tipEarningsEntries.vals(), tipEarningsEntries.size(), Principal.equal, Principal.hash);
+    pendingZipUploads := HashMap.fromIter<Text, PendingZipUpload>(pendingZipUploadEntries.vals(), pendingZipUploadEntries.size(), Text.equal, textHash);
+    zipChunks := HashMap.fromIter<Text, Blob>(zipChunkEntries.vals(), zipChunkEntries.size(), Text.equal, textHash);
+    notifications := HashMap.fromIter<Text, UserNotification>(notificationEntries.vals(), notificationEntries.size(), Text.equal, textHash);
+    gameCategories := HashMap.fromIter<Text, Text>(gameCategoryEntries.vals(), gameCategoryEntries.size(), Text.equal, textHash);
+    gameAccessibility := HashMap.fromIter<Text, (Bool, Bool, Bool, Bool)>(gameAccessibilityEntries.vals(), gameAccessibilityEntries.size(), Text.equal, textHash);
+    gamePricing := HashMap.fromIter<Text, (Nat, Nat)>(gamePricingEntries.vals(), gamePricingEntries.size(), Text.equal, textHash);
     nftSellerEarningsE8s := HashMap.fromIter<Principal, Nat>(nftSellerEarningEntries.vals(), nftSellerEarningEntries.size(), Principal.equal, Principal.hash);
     refundsE8s := HashMap.fromIter<Principal, Nat>(refundEntries.vals(), refundEntries.size(), Principal.equal, Principal.hash);
     escrows := HashMap.fromIter<Text, EscrowedNft>(escrowEntries.vals(), escrowEntries.size(), Text.equal, textHash);
@@ -1004,6 +1117,11 @@ persistent actor ArcadeBackend {
   };
 
   // === HELPERS ===
+  func isModerator(caller : Principal) : Bool {
+    hydrateRuntimeStateIfNeeded();
+    moderators.get(caller) != null;
+  };
+
   func isAdmin(caller : Principal) : Bool {
     for (a in ADMINS.vals()) {
       if (Principal.equal(caller, a)) return true;
@@ -1151,6 +1269,19 @@ persistent actor ArcadeBackend {
   func restoreGameCreatorEarningsBalance(creator : Principal, amountE8s : Nat) {
     let current = getGameCreatorEarningsBalance(creator);
     royalties.put(creator, current + amountE8s);
+  };
+
+  func getTipEarningsBalance(creator : Principal) : Nat {
+    if (runtimeStateHydrated) {
+      switch (tipEarnings.get(creator)) { case null 0; case (?v) v };
+    } else {
+      switch (findPrincipalNat(tipEarningsEntries, creator)) { case null 0; case (?v) v };
+    };
+  };
+
+  func restoreTipEarningsBalance(creator : Principal, amountE8s : Nat) {
+    let current = getTipEarningsBalance(creator);
+    tipEarnings.put(creator, current + amountE8s);
   };
 
   func restoreNftSellerEarningsBalance(seller : Principal, amountE8s : Nat) {
@@ -2517,103 +2648,6 @@ persistent actor ArcadeBackend {
     #ok(id);
   };
 
-  /// Apply for NFT Showroom (existing = instant 1 ICP, minted = 5 ICP escrow)
-  public shared(msg) func applyNftShowroom(listingId : Text, feeTxId : Nat) : async Result.Result<Text, Text> {
-    let caller = msg.caller;
-    hydrateRuntimeStateIfNeeded();
-    switch (nftListings.get(listingId)) {
-      case null { return #err("Listing not found") };
-      case (?listing) {
-        if (not Principal.equal(listing.creator, caller) and not isAdmin(caller)) return #err("Not the listing owner");
-        if (listing.tier == "showroom" or listing.tier == "jays-picks") return #err("Already in Showroom or Jay's Picks");
-
-        if (listing.listingType == "existing") {
-          // Auto-approve, 1 ICP
-          let updated : NftListing = {
-            id = listing.id; listingType = listing.listingType; name = listing.name;
-            description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost;
-            imageUrl = listing.imageUrl; creator = listing.creator;
-            tier = "showroom"; status = listing.status;
-            feePaid = listing.feePaid; showroomFeePaid = 100_000_000; // 1 ICP
-            txId = listing.txId; createdAt = listing.createdAt;
-            sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId;
-            sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName;
-          };
-          nftListings.put(listingId, updated);
-          logRevenue("nft-showroom", 100_000_000, caller, 3);
-          #ok("Showroom approved! Your NFT is now featured.");
-        } else {
-          // Minted: needs admin approval, 5 ICP escrow
-          let updated : NftListing = {
-            id = listing.id; listingType = listing.listingType; name = listing.name;
-            description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost;
-            imageUrl = listing.imageUrl; creator = listing.creator;
-            tier = "showroom-pending"; status = listing.status;
-            feePaid = listing.feePaid; showroomFeePaid = 500_000_000; // 5 ICP
-            txId = listing.txId; createdAt = listing.createdAt;
-            sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId;
-            sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName;
-          };
-          nftListings.put(listingId, updated);
-          #ok("Showroom application submitted! Awaiting admin approval.");
-        };
-      };
-    };
-  };
-
-  /// Admin: approve NFT showroom application
-  public shared(msg) func approveNftShowroom(listingId : Text) : async Result.Result<Text, Text> {
-    if (not isAdmin(msg.caller)) return #err("Not authorized");
-    hydrateRuntimeStateIfNeeded();
-    switch (nftListings.get(listingId)) {
-      case null { return #err("Listing not found") };
-      case (?listing) {
-        if (listing.tier != "showroom-pending") return #err("Not pending showroom approval");
-        let updated : NftListing = {
-          id = listing.id; listingType = listing.listingType; name = listing.name;
-          description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost;
-          imageUrl = listing.imageUrl; creator = listing.creator;
-          tier = "showroom"; status = listing.status;
-          feePaid = listing.feePaid; showroomFeePaid = listing.showroomFeePaid;
-          txId = listing.txId; createdAt = listing.createdAt;
-          sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId;
-          sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName;
-        };
-        nftListings.put(listingId, updated);
-        logRevenue("nft-showroom", listing.showroomFeePaid, listing.creator, 3);
-        #ok("NFT approved for Showroom!");
-      };
-    };
-  };
-
-  /// Admin: reject NFT showroom application (refund 4 ICP, keep 1 ICP)
-  public shared(msg) func rejectNftShowroom(listingId : Text) : async Result.Result<Text, Text> {
-    if (not isAdmin(msg.caller)) return #err("Not authorized");
-    hydrateRuntimeStateIfNeeded();
-    switch (nftListings.get(listingId)) {
-      case null { return #err("Listing not found") };
-      case (?listing) {
-        if (listing.tier != "showroom-pending") return #err("Not pending showroom approval");
-        let updated : NftListing = {
-          id = listing.id; listingType = listing.listingType; name = listing.name;
-          description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost;
-          imageUrl = listing.imageUrl; creator = listing.creator;
-          tier = "open"; status = listing.status;
-          feePaid = listing.feePaid; showroomFeePaid = 0;
-          txId = listing.txId; createdAt = listing.createdAt;
-          sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId;
-          sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName;
-        };
-        nftListings.put(listingId, updated);
-        // Keep 1 ICP (100_000_000 e8s), refund 4 ICP via the separate refund balance.
-        let refundAmount = 400_000_000; // 4 ICP
-        creditRefundE8s(listing.creator, refundAmount);
-        logRevenue("nft-showroom", 100_000_000, listing.creator, 3); // keep 1 ICP
-        #ok("NFT showroom application rejected. 4 ICP refund credited.");
-      };
-    };
-  };
-
   /// Admin: promote to Jay's Picks
   public shared(msg) func promoteNftToJaysPicks(listingId : Text) : async Result.Result<Text, Text> {
     if (not isAdmin(msg.caller)) return #err("Not authorized");
@@ -3135,41 +3169,600 @@ persistent actor ArcadeBackend {
   // ============================================
 
   /// Submit a game to the Backroom (10 ICP fee)
-  public shared(msg) func submitGame(
+  /// Real The Back submission with a genuine 10 ICP charge — was previously entirely broken on
+  /// both paths: the frontend's Token-path call to submitGame() didn't match that function's real
+  /// 7-parameter signature (a Candid decode mismatch), and this ICP-path function was declared in
+  /// the IDL but never implemented at all (same "frontend wired, backend missing" shape as
+  /// Blackhole before tonight's build). Charges from the caller's deposit subaccount straight into
+  /// the dedicated Back Treasury subaccount, same pattern as Blackhole's fee.
+  /// paysTickets/gameCategory/tokenCost/scoringMode/purchasePrice are accepted for frontend
+  /// call-signature compatibility but not persisted, matching the existing adminAddGame precedent
+  /// — the stable GameSubmission type has no fields for them today.
+  /// The Back is zip-upload-only now (no weblink option) — url starts empty and is filled in by
+  /// adminPublishZipGame once admin has reviewed and manually hosted the submitted zip. Status
+  /// starts at "backroom-zip-pending" rather than "live" so an unhosted game never appears in the
+  /// public Back listing.
+  public shared(msg) func submitGameWithPayment(
     name : Text,
     developer : Text,
-    url : Text,
     thumbnailUrl : Text,
     description : Text,
-    compatibility : Text,
-    feeTxId : Nat
+    compatibility : Text
   ) : async Result.Result<Text, Text> {
     let caller = msg.caller;
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     hydrateRuntimeStateIfNeeded();
     if (Text.size(name) == 0) return #err("Name required");
-    if (Text.size(url) == 0) return #err("URL required");
+    if (hasPendingGameSubmission(caller)) return #err("You already have a submission pending admin review. Please wait for it to be approved or rejected before submitting another.");
 
-    let id = genGameId();
-    let game : GameSubmission = {
-      id = id;
-      name = name;
-      developer = developer;
-      url = url;
-      thumbnailUrl = thumbnailUrl;
-      description = description;
-      compatibility = compatibility;
-      creator = caller;
-      gameTier = "backroom";
-      status = "live";
-      feePaid = 10_000_000_000; // 10 ICP
-      showroomFeePaid = 0;
-      txId = feeTxId;
+    let ledgerFeeE8s = 10_000;
+    let fromSub = principalToSubaccount(caller);
+    let selfPrincipal = Principal.fromActor(ArcadeBackend);
+    let bal = await ICP_LEDGER_ICRC1.icrc1_balance_of({ owner = selfPrincipal; subaccount = ?fromSub });
+    if (bal < BACK_SUBMISSION_FEE_E8S + ledgerFeeE8s) {
+      return #err(
+        "Not enough ICP in your arcade deposit. The Back submission costs 10 ICP. Available " #
+        Nat.toText(bal) # " e8s; need " # Nat.toText(BACK_SUBMISSION_FEE_E8S + ledgerFeeE8s) # " e8s including ledger fee."
+      );
+    };
+
+    try {
+      let transferResult = await ICP_LEDGER.icrc1_transfer({
+        to = { owner = selfPrincipal; subaccount = ?BACK_TREASURY_SUBACCOUNT };
+        fee = null;
+        memo = null;
+        from_subaccount = ?fromSub;
+        created_at_time = null;
+        amount = BACK_SUBMISSION_FEE_E8S;
+      });
+      switch (transferResult) {
+        case (#Ok(blockIndex)) {
+          if (Option.isSome(claimedSet.get(blockIndex))) {
+            return #err("Duplicate ICP ledger transfer: block " # Nat.toText(blockIndex));
+          };
+          claimedSet.put(blockIndex, true);
+          let id = genGameId();
+          let game : GameSubmission = {
+            id = id;
+            name = name;
+            developer = developer;
+            url = "";
+            thumbnailUrl = thumbnailUrl;
+            description = description;
+            compatibility = compatibility;
+            creator = caller;
+            gameTier = "backroom";
+            status = "backroom-zip-pending";
+            feePaid = BACK_SUBMISSION_FEE_E8S;
+            showroomFeePaid = 0;
+            txId = blockIndex;
+            createdAt = Time.now();
+          };
+          gameSubmissions.put(id, game);
+          logRevenue("game-backroom", BACK_SUBMISSION_FEE_E8S, caller, 4);
+          #ok(id)
+        };
+        case (#Err(e)) { #err(icpTransferErrorText("The Back submission fee", e)) };
+      }
+    } catch (e) {
+      #err("The Back submission fee transfer error: " # Error.message(e))
+    }
+  };
+
+  /// Admin-only withdrawal from the dedicated Back Treasury subaccount.
+  public shared(msg) func adminWithdrawBackTreasury(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    if (backTreasuryWithdrawalInFlight) return #err("Back Treasury withdrawal already in progress");
+    if (amountE8s <= ICP_LEDGER_FEE_E8S) {
+      return #err("Back Treasury withdrawal amount must exceed ledger fee dust: " # Nat.toText(ICP_LEDGER_FEE_E8S) # " e8s");
+    };
+    let selfPrincipal = Principal.fromActor(ArcadeBackend);
+    let requiredE8s = amountE8s + ICP_LEDGER_FEE_E8S;
+    backTreasuryWithdrawalInFlight := true;
+    try {
+      let backBalanceE8s = await ICP_LEDGER_ICRC1.icrc1_balance_of({ owner = selfPrincipal; subaccount = ?BACK_TREASURY_SUBACCOUNT });
+      if (backBalanceE8s < requiredE8s) {
+        backTreasuryWithdrawalInFlight := false;
+        return #err(
+          "Back Treasury has insufficient funds: " # Nat.toText(backBalanceE8s) #
+          " e8s available; need " # Nat.toText(requiredE8s) # " e8s including fee"
+        );
+      };
+      let result = await ICP_LEDGER.icrc1_transfer({
+        to = destination;
+        fee = null;
+        memo = null;
+        from_subaccount = ?BACK_TREASURY_SUBACCOUNT;
+        created_at_time = null;
+        amount = amountE8s;
+      });
+      backTreasuryWithdrawalInFlight := false;
+      switch (result) {
+        case (#Ok(blockIndex)) { #ok(blockIndex) };
+        case (#Err(e)) { #err(icpTransferErrorText("Back Treasury withdrawal", e)) };
+      }
+    } catch (e) {
+      backTreasuryWithdrawalInFlight := false;
+      #err("Back Treasury withdrawal transfer error: " # Error.message(e))
+    }
+  };
+
+  /// Read-only: current live balance of the dedicated Back Treasury subaccount (admin only).
+  public shared(msg) func getBackTreasuryBalance() : async Result.Result<Nat, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    let selfPrincipal = Principal.fromActor(ArcadeBackend);
+    let balanceE8s = await ICP_LEDGER_ICRC1.icrc1_balance_of({ owner = selfPrincipal; subaccount = ?BACK_TREASURY_SUBACCOUNT });
+    #ok(balanceE8s)
+  };
+
+  /// Real implementation — was previously declared in the frontend IDL and called by
+  /// refreshBackSubmissionFeeDisplay, but never existed on the backend, so the call always
+  /// silently failed and the UI fell back to stale hardcoded fee text.
+  /// Both tiers are now ICP-only (zip-upload submissions) — backSubmitFeeTokens is kept in the
+  /// return shape at 0 for frontend call-signature compatibility with any caller still expecting
+  /// the field, rather than risking a decode break; it is no longer a real, chargeable option.
+  public query func getSubmissionFeeConfig() : async { backSubmitFeeTokens : Nat; backSubmitFeeIcpE8s : Nat; showroomSubmitFeeIcpE8s : Nat } {
+    { backSubmitFeeTokens = 0; backSubmitFeeIcpE8s = BACK_SUBMISSION_FEE_E8S; showroomSubmitFeeIcpE8s = SHOWROOM_SUBMISSION_FEE_E8S }
+  };
+
+  /// Real Showroom submission, replacing the old Token-based path which called submitGame(...)
+  /// with a 12-argument call that never matched that function's real 7-parameter signature (the
+  /// same Candid mismatch found and fixed for The Back). Showroom is now zip-upload-only too — url
+  /// starts empty. Status starts at "showroom-zip-pending" (waiting for admin to host the zip);
+  /// once adminPublishZipGame hosts it, it moves to the existing "showroom-pending" content-review
+  /// state, preserving Showroom's separate hosting-then-approval two-stage flow.
+  public shared(msg) func submitShowroomGameWithPayment(
+    name : Text,
+    developer : Text,
+    thumbnailUrl : Text,
+    description : Text,
+    compatibility : Text
+  ) : async Result.Result<Text, Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    hydrateRuntimeStateIfNeeded();
+    if (Text.size(name) == 0) return #err("Name required");
+    if (hasPendingGameSubmission(caller)) return #err("You already have a submission pending admin review. Please wait for it to be approved or rejected before submitting another.");
+
+    let ledgerFeeE8s = 10_000;
+    let fromSub = principalToSubaccount(caller);
+    let selfPrincipal = Principal.fromActor(ArcadeBackend);
+    let bal = await ICP_LEDGER_ICRC1.icrc1_balance_of({ owner = selfPrincipal; subaccount = ?fromSub });
+    if (bal < SHOWROOM_SUBMISSION_FEE_E8S + ledgerFeeE8s) {
+      return #err(
+        "Not enough ICP in your arcade deposit. Showroom submission costs 25 ICP. Available " #
+        Nat.toText(bal) # " e8s; need " # Nat.toText(SHOWROOM_SUBMISSION_FEE_E8S + ledgerFeeE8s) # " e8s including ledger fee."
+      );
+    };
+
+    try {
+      let transferResult = await ICP_LEDGER.icrc1_transfer({
+        to = { owner = selfPrincipal; subaccount = ?SHOWROOM_TREASURY_SUBACCOUNT };
+        fee = null;
+        memo = null;
+        from_subaccount = ?fromSub;
+        created_at_time = null;
+        amount = SHOWROOM_SUBMISSION_FEE_E8S;
+      });
+      switch (transferResult) {
+        case (#Ok(blockIndex)) {
+          if (Option.isSome(claimedSet.get(blockIndex))) {
+            return #err("Duplicate ICP ledger transfer: block " # Nat.toText(blockIndex));
+          };
+          claimedSet.put(blockIndex, true);
+          let id = genGameId();
+          let game : GameSubmission = {
+            id = id;
+            name = name;
+            developer = developer;
+            url = "";
+            thumbnailUrl = thumbnailUrl;
+            description = description;
+            compatibility = compatibility;
+            creator = caller;
+            gameTier = "showroom";
+            status = "showroom-zip-pending";
+            feePaid = 0;
+            showroomFeePaid = SHOWROOM_SUBMISSION_FEE_E8S;
+            txId = blockIndex;
+            createdAt = Time.now();
+          };
+          gameSubmissions.put(id, game);
+          logRevenue("game-showroom", SHOWROOM_SUBMISSION_FEE_E8S, caller, 5);
+          #ok(id)
+        };
+        case (#Err(e)) { #err(icpTransferErrorText("Showroom submission fee", e)) };
+      }
+    } catch (e) {
+      #err("Showroom submission fee transfer error: " # Error.message(e))
+    }
+  };
+
+  /// Admin-only withdrawal from the dedicated Showroom Treasury subaccount.
+  public shared(msg) func adminWithdrawShowroomTreasury(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    if (showroomTreasuryWithdrawalInFlight) return #err("Showroom Treasury withdrawal already in progress");
+    if (amountE8s <= ICP_LEDGER_FEE_E8S) {
+      return #err("Showroom Treasury withdrawal amount must exceed ledger fee dust: " # Nat.toText(ICP_LEDGER_FEE_E8S) # " e8s");
+    };
+    let selfPrincipal = Principal.fromActor(ArcadeBackend);
+    let requiredE8s = amountE8s + ICP_LEDGER_FEE_E8S;
+    showroomTreasuryWithdrawalInFlight := true;
+    try {
+      let showroomBalanceE8s = await ICP_LEDGER_ICRC1.icrc1_balance_of({ owner = selfPrincipal; subaccount = ?SHOWROOM_TREASURY_SUBACCOUNT });
+      if (showroomBalanceE8s < requiredE8s) {
+        showroomTreasuryWithdrawalInFlight := false;
+        return #err(
+          "Showroom Treasury has insufficient funds: " # Nat.toText(showroomBalanceE8s) #
+          " e8s available; need " # Nat.toText(requiredE8s) # " e8s including fee"
+        );
+      };
+      let result = await ICP_LEDGER.icrc1_transfer({
+        to = destination;
+        fee = null;
+        memo = null;
+        from_subaccount = ?SHOWROOM_TREASURY_SUBACCOUNT;
+        created_at_time = null;
+        amount = amountE8s;
+      });
+      showroomTreasuryWithdrawalInFlight := false;
+      switch (result) {
+        case (#Ok(blockIndex)) { #ok(blockIndex) };
+        case (#Err(e)) { #err(icpTransferErrorText("Showroom Treasury withdrawal", e)) };
+      }
+    } catch (e) {
+      showroomTreasuryWithdrawalInFlight := false;
+      #err("Showroom Treasury withdrawal transfer error: " # Error.message(e))
+    }
+  };
+
+  /// Read-only: current live balance of the dedicated Showroom Treasury subaccount (admin only).
+  public shared(msg) func getShowroomTreasuryBalance() : async Result.Result<Nat, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    let selfPrincipal = Principal.fromActor(ArcadeBackend);
+    let balanceE8s = await ICP_LEDGER_ICRC1.icrc1_balance_of({ owner = selfPrincipal; subaccount = ?SHOWROOM_TREASURY_SUBACCOUNT });
+    #ok(balanceE8s)
+  };
+
+  // ============================================
+  // === GAME ZIP UPLOAD QUEUE (The Back + Showroom) ===
+  // Submitters upload their game zip in chunks directly into arcade_backend's own storage, since
+  // only the admin identity has write permission on the real game_assets hosting canister.
+  // Admin then downloads the reassembled zip from the admin panel, personally reviews its
+  // contents, and — only once satisfied — manually hosts it via the existing admin-only "Upload
+  // Game to Chain" tool before calling adminPublishZipGame to flip the listing live. Nothing here
+  // auto-publishes anything; deliberate by design.
+  // ============================================
+
+  /// One pending submission at a time per user, across both tiers — a clearer, easier-to-reason-
+  /// about rule than counting raw upload slots (which confused users when a stuck/failed upload
+  /// left stale slots occupied). Checked before any fee is charged, so a blocked resubmission
+  /// attempt never risks a double-charge.
+  func hasPendingGameSubmission(who : Principal) : Bool {
+    for ((_, game) in gameSubmissions.entries()) {
+      if (Principal.equal(game.creator, who) and (game.status == "backroom-zip-pending" or game.status == "showroom-zip-pending")) {
+        return true;
+      };
+    };
+    false
+  };
+
+  func countActivePendingZipUploadsForUser(who : Principal) : Nat {
+    var count = 0;
+    for ((_, upload) in pendingZipUploads.entries()) {
+      if (Principal.equal(upload.submitter, who) and upload.status != "published") {
+        count += 1;
+      };
+    };
+    count
+  };
+
+  public shared(msg) func startZipUpload(gameId : Text, purpose : Text, filename : Text, totalBytes : Nat, chunkCount : Nat) : async Result.Result<Text, Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    hydrateRuntimeStateIfNeeded();
+    let game = switch (gameSubmissions.get(gameId)) {
+      case null return #err("Game not found");
+      case (?g) g;
+    };
+    if (not Principal.equal(game.creator, caller)) return #err("You did not submit this game");
+    if (purpose != "zip" and purpose != "thumbnail") return #err("Invalid upload purpose");
+    let maxBytes = if (purpose == "thumbnail") MAX_THUMBNAIL_UPLOAD_BYTES else MAX_ZIP_TOTAL_BYTES;
+    if (totalBytes == 0 or totalBytes > maxBytes) {
+      return #err("File must be between 1 byte and " # Nat.toText(maxBytes / (1024*1024)) # "MB");
+    };
+    if (chunkCount == 0) return #err("Chunk count must be greater than zero");
+    if (countActivePendingZipUploadsForUser(caller) >= MAX_PENDING_ZIP_UPLOADS_PER_USER) {
+      return #err("Too many pending uploads. Please wait for admin to review your existing submissions first.");
+    };
+    zipUploadCounter += 1;
+    let uploadId = "zip-" # Nat.toText(zipUploadCounter) # "-" # Int.toText(Time.now());
+    let upload : PendingZipUpload = {
+      id = uploadId;
+      gameId = gameId;
+      submitter = caller;
+      tier = game.gameTier;
+      filename = purpose # "::" # filename;
+      totalBytes = totalBytes;
+      chunkCount = chunkCount;
+      receivedChunks = 0;
+      status = "uploading";
       createdAt = Time.now();
     };
-    gameSubmissions.put(id, game);
-    logRevenue("game-backroom", 10_000_000_000, caller, 4);
-    #ok(id);
+    pendingZipUploads.put(uploadId, upload);
+    #ok(uploadId)
+  };
+
+  public shared(msg) func uploadZipChunk(uploadId : Text, chunkIndex : Nat, data : Blob) : async Result.Result<Nat, Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    let upload = switch (pendingZipUploads.get(uploadId)) {
+      case null return #err("Upload not found");
+      case (?u) u;
+    };
+    if (not Principal.equal(upload.submitter, caller)) return #err("Not your upload");
+    if (upload.status != "uploading") return #err("This upload is no longer accepting chunks");
+    if (chunkIndex >= upload.chunkCount) return #err("Chunk index out of range");
+    if (data.size() > MAX_ZIP_CHUNK_BYTES) {
+      return #err("Chunk too large: " # Nat.toText(data.size()) # " bytes; max " # Nat.toText(MAX_ZIP_CHUNK_BYTES) # " bytes per chunk");
+    };
+    let chunkKey = uploadId # "#" # Nat.toText(chunkIndex);
+    let isNewChunk = Option.isNull(zipChunks.get(chunkKey));
+    zipChunks.put(chunkKey, data);
+    let updated : PendingZipUpload = {
+      upload with receivedChunks = if (isNewChunk) upload.receivedChunks + 1 else upload.receivedChunks
+    };
+    pendingZipUploads.put(uploadId, updated);
+    #ok(updated.receivedChunks)
+  };
+
+  public shared(msg) func finalizeZipUpload(uploadId : Text) : async Result.Result<Text, Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    let upload = switch (pendingZipUploads.get(uploadId)) {
+      case null return #err("Upload not found");
+      case (?u) u;
+    };
+    if (not Principal.equal(upload.submitter, caller)) return #err("Not your upload");
+    if (upload.receivedChunks != upload.chunkCount) {
+      return #err("Missing chunks: received " # Nat.toText(upload.receivedChunks) # " of " # Nat.toText(upload.chunkCount));
+    };
+    let updated : PendingZipUpload = { upload with status = "ready" };
+    pendingZipUploads.put(uploadId, updated);
+    #ok("Zip received. Pending admin review.")
+  };
+
+  public shared(msg) func adminGetPendingZipUploads() : async Result.Result<[PendingZipUpload], Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    hydrateRuntimeStateIfNeeded();
+    let out = Buffer.Buffer<PendingZipUpload>(pendingZipUploads.size());
+    for ((_, upload) in pendingZipUploads.entries()) {
+      out.add(upload);
+    };
+    #ok(Buffer.toArray(out))
+  };
+
+  public shared(msg) func adminGetZipChunk(uploadId : Text, chunkIndex : Nat) : async Result.Result<Blob, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    switch (zipChunks.get(uploadId # "#" # Nat.toText(chunkIndex))) {
+      case null #err("Chunk not found");
+      case (?data) #ok(data);
+    }
+  };
+
+  public shared(msg) func adminMarkZipDownloaded(uploadId : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    switch (pendingZipUploads.get(uploadId)) {
+      case null #err("Upload not found");
+      case (?upload) {
+        pendingZipUploads.put(uploadId, { upload with status = "downloaded" });
+        #ok("Marked downloaded")
+      };
+    }
+  };
+
+  func deletePendingZipUploadAndChunks(uploadId : Text, chunkCount : Nat) {
+    pendingZipUploads.delete(uploadId);
+    var i = 0;
+    while (i < chunkCount) {
+      zipChunks.delete(uploadId # "#" # Nat.toText(i));
+      i += 1;
+    };
+  };
+
+  /// A submission always queues up to two uploads (zip + thumbnail), but reject/remove used to
+  /// only clean up whichever single upload id the caller happened to pass in — leaving the other
+  /// one (usually the thumbnail) permanently orphaned in storage. An orphaned upload still counts
+  /// toward that user's per-user pending-upload cap forever, and still shows up in the admin
+  /// pending-submissions view (which groups by upload record, not by the game's actual status),
+  /// making already-rejected/removed games appear to still be awaiting review. This sweeps every
+  /// upload actually tied to a game, so reject/remove genuinely leaves nothing behind.
+  func deleteAllPendingUploadsForGameId(gameId : Text) {
+    let toDelete = Array.filter<(Text, PendingZipUpload)>(Iter.toArray(pendingZipUploads.entries()), func((_, u)) { u.gameId == gameId });
+    for ((uploadId, upload) in toDelete.vals()) {
+      deletePendingZipUploadAndChunks(uploadId, upload.chunkCount);
+    };
+  };
+
+  public shared(msg) func adminDeletePendingZipUpload(uploadId : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    switch (pendingZipUploads.get(uploadId)) {
+      case null #err("Upload not found");
+      case (?upload) {
+        deletePendingZipUploadAndChunks(uploadId, upload.chunkCount);
+        #ok("Deleted")
+      };
+    }
+  };
+
+  /// Admin: after manually hosting a reviewed zip via the existing "Upload Game to Chain" tool,
+  /// this sets the game's real url and moves it out of its pending-zip state. The Back goes
+  /// straight to "live"; Showroom moves to "showroom-pending" so it still goes through the
+  /// existing separate content-approval step (approveGameShowroom/rejectGameShowroom).
+  public shared(msg) func adminPublishZipGame(gameId : Text, hostedUrl : Text, uploadId : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    hydrateRuntimeStateIfNeeded();
+    let game = switch (gameSubmissions.get(gameId)) {
+      case null return #err("Game not found");
+      case (?g) g;
+    };
+    if (Text.size(hostedUrl) == 0) return #err("Hosted URL required");
+    let newStatus = if (game.gameTier == "showroom") "showroom-pending" else "live";
+    let updated : GameSubmission = { game with url = hostedUrl; status = newStatus };
+    gameSubmissions.put(gameId, updated);
+    if (newStatus == "live") {
+      createNotification(game.creator, "Game Published!", "\"" # game.name # "\" is now live in The Back.", gameId);
+    };
+    switch (pendingZipUploads.get(uploadId)) {
+      case (?upload) { deletePendingZipUploadAndChunks(uploadId, upload.chunkCount) };
+      case null {};
+    };
+    #ok("Game published")
+  };
+
+  /// Admin: after downloading and reviewing a queued thumbnail and hosting it themselves (via
+  /// their own already-trusted identity, same as the existing admin thumbnail-upload path), sets
+  /// the game's real thumbnail URL and clears the pending upload.
+  public shared(msg) func adminSetGameThumbnail(gameId : Text, thumbnailUrl : Text, uploadId : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    hydrateRuntimeStateIfNeeded();
+    let game = switch (gameSubmissions.get(gameId)) {
+      case null return #err("Game not found");
+      case (?g) g;
+    };
+    if (Text.size(thumbnailUrl) == 0) return #err("Thumbnail URL required");
+    let updated : GameSubmission = { game with thumbnailUrl = thumbnailUrl };
+    gameSubmissions.put(gameId, updated);
+    switch (pendingZipUploads.get(uploadId)) {
+      case (?upload) { deletePendingZipUploadAndChunks(uploadId, upload.chunkCount) };
+      case null {};
+    };
+    #ok("Thumbnail set")
+  };
+
+  func createNotification(recipient : Principal, title : Text, message : Text, gameId : Text) {
+    notificationCounter += 1;
+    let id = "notif-" # Nat.toText(notificationCounter) # "-" # Int.toText(Time.now());
+    let n : UserNotification = { id; recipient; title; message; gameId; createdAt = Time.now(); seen = false };
+    notifications.put(id, n);
+  };
+
+  /// Returns the caller's unseen notifications only — the frontend shows each as a popup then
+  /// calls markNotificationSeen so it never repeats.
+  public query(msg) func getMyNotifications() : async [UserNotification] {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return [];
+    hydrateRuntimeStateIfNeeded();
+    let out = Buffer.Buffer<UserNotification>(4);
+    for ((_, n) in notifications.entries()) {
+      if (Principal.equal(n.recipient, caller) and not n.seen) { out.add(n) };
+    };
+    Buffer.toArray(out)
+  };
+
+  public shared(msg) func markNotificationSeen(id : Text) : async Result.Result<(), Text> {
+    let caller = msg.caller;
+    switch (notifications.get(id)) {
+      case null return #err("Notification not found");
+      case (?n) {
+        if (not Principal.equal(n.recipient, caller)) return #err("Not your notification");
+        notifications.put(id, { n with seen = true });
+        #ok(())
+      };
+    }
+  };
+
+  /// Category is settable once by the submitter (as part of their own submission) or any time by
+  /// admin (per Jay's "auto-set by user's choice, admin adjustable" spec). Stored separately from
+  /// GameSubmission itself — see gameCategoryEntries' comment for why.
+  public shared(msg) func setGameCategory(gameId : Text, category : Text) : async Result.Result<(), Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    hydrateRuntimeStateIfNeeded();
+    let game = switch (gameSubmissions.get(gameId)) {
+      case null return #err("Game not found");
+      case (?g) g;
+    };
+    if (not Principal.equal(game.creator, caller) and not isAdmin(caller)) return #err("Not authorized");
+    gameCategories.put(gameId, category);
+    #ok(())
+  };
+
+  public query func getGameCategory(gameId : Text) : async Text {
+    switch (gameCategories.get(gameId)) { case null ""; case (?c) c };
+  };
+
+  /// Creator-facing accessibility/build tags, mirroring setGameCategory's exact auth pattern
+  /// (settable once by the submitter, adjustable any time by admin) rather than adminSetGamePricing's
+  /// admin-only pattern, since these are meant to be the creator's own honest self-description of
+  /// their game, not something admin decides for them.
+  public shared(msg) func setGameAccessibility(gameId : Text, keyboardOnly : Bool, keyboardAndMouse : Bool, controllerReady : Bool, madeWithAi : Bool) : async Result.Result<(), Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    hydrateRuntimeStateIfNeeded();
+    let game = switch (gameSubmissions.get(gameId)) {
+      case null return #err("Game not found");
+      case (?g) g;
+    };
+    if (not Principal.equal(game.creator, caller) and not isAdmin(caller)) return #err("Not authorized");
+    gameAccessibility.put(gameId, (keyboardOnly, keyboardAndMouse, controllerReady, madeWithAi));
+    #ok(())
+  };
+
+  public query func getGameAccessibility(gameId : Text) : async { keyboardOnly : Bool; keyboardAndMouse : Bool; controllerReady : Bool; madeWithAi : Bool } {
+    switch (gameAccessibility.get(gameId)) {
+      case null { { keyboardOnly = false; keyboardAndMouse = false; controllerReady = false; madeWithAi = false } };
+      case (?(ko, kam, cr, ai)) { { keyboardOnly = ko; keyboardAndMouse = kam; controllerReady = cr; madeWithAi = ai } };
+    };
+  };
+
+  /// Admin-only pricing setter, per Jay's design: unlike category, pricing is never set by the
+  /// submitter, only by admin. 0 = unset in both params, matching adminAddGame's existing
+  /// convention. Supports The Back's three models directly: both 0 = free, tokenCost>0 with
+  /// purchasePrice=0 = token-per-play only, both >0 = token-per-play with a buy-outright option
+  /// layered on top. Stored in the separate gamePricing map, not on GameSubmission itself (see
+  /// gamePricingEntries' comment for why).
+  public shared(msg) func adminSetGamePricing(gameId : Text, tokenCost : Nat, purchasePrice : Nat) : async Result.Result<(), Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    hydrateRuntimeStateIfNeeded();
+    switch (gameSubmissions.get(gameId)) {
+      case null return #err("Game not found");
+      case (?_) {};
+    };
+    gamePricing.put(gameId, (tokenCost, purchasePrice));
+    #ok(())
+  };
+
+  public query func getGamePricing(gameId : Text) : async { tokenCost : ?Nat; purchasePrice : ?Nat } {
+    switch (gamePricing.get(gameId)) {
+      case null { { tokenCost = null; purchasePrice = null } };
+      case (?(tc, pp)) {
+        { tokenCost = if (tc == 0) null else ?tc; purchasePrice = if (pp == 0) null else ?pp }
+      };
+    };
+  };
+
+  public query func getAllGameCategories() : async [(Text, Text)] {
+    Iter.toArray(gameCategories.entries())
+  };
+
+  /// Admin: reject a queued submission instead of publishing it. Notifies the submitter with the
+  /// given reason and clears the associated pending upload (zip or thumbnail — whichever the
+  /// admin was reviewing when they rejected).
+  public shared(msg) func adminRejectZipGame(gameId : Text, uploadId : Text, reason : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    hydrateRuntimeStateIfNeeded();
+    let game = switch (gameSubmissions.get(gameId)) {
+      case null return #err("Game not found");
+      case (?g) g;
+    };
+    let updated : GameSubmission = { game with status = "rejected" };
+    gameSubmissions.put(gameId, updated);
+    let reasonText = if (Text.size(reason) == 0) "No reason given." else reason;
+    createNotification(game.creator, "Submission Rejected", "\"" # game.name # "\" was not approved.<br><br>" # reasonText, gameId);
+    ignore uploadId; // kept for API compatibility; every upload tied to this game is now swept below
+    deleteAllPendingUploadsForGameId(gameId);
+    #ok("Game rejected")
   };
 
   /// Admin: register an already-uploaded game from the admin panel.
@@ -3285,12 +3878,17 @@ persistent actor ArcadeBackend {
         };
         gameSubmissions.put(gameId, updated);
         logRevenue("game-showroom", game.showroomFeePaid, game.creator, 5);
+        createNotification(game.creator, "Game Published!", "\"" # game.name # "\" is now live in Showroom.", gameId);
         #ok("Game approved for Showroom!");
       };
     };
   };
 
-  /// Admin: reject game showroom (refund 97.5 ICP, keep 2.5 ICP)
+  /// Admin: reject a game's Showroom content approval (after it's already been hosted). Was
+  /// previously hardcoded to refund 97.5 ICP / keep 2.5 ICP — calibrated to a much older ~100 ICP
+  /// fee scheme that no longer matches the real 25 ICP Showroom fee at all, which would have
+  /// refunded submitters nearly 4x what they actually paid. Fixed to a genuine 90% refund / 10%
+  /// kept, calculated off the game's own real showroomFeePaid rather than a stale absolute number.
   public shared(msg) func rejectGameShowroom(gameId : Text) : async Result.Result<Text, Text> {
     if (not isAdmin(msg.caller)) return #err("Not authorized");
     hydrateRuntimeStateIfNeeded();
@@ -3307,11 +3905,9 @@ persistent actor ArcadeBackend {
           txId = game.txId; createdAt = game.createdAt;
         };
         gameSubmissions.put(gameId, updated);
-        // Refund 97.5 ICP via the separate refund balance, keep 2.5 ICP.
-        let refundAmount = 97_500_000_000; // 97.5 ICP
-        creditRefundE8s(game.creator, refundAmount);
-        logRevenue("game-showroom", 2_500_000_000, game.creator, 5); // keep 2.5 ICP
-        #ok("Game showroom application rejected. 97.5 ICP refund credited.");
+        logRevenue("game-showroom", game.showroomFeePaid, game.creator, 5);
+        createNotification(game.creator, "Showroom Application Rejected", "\"" # game.name # "\" was not approved for Showroom.", gameId);
+        #ok("Game showroom application rejected. No refund issued.");
       };
     };
   };
@@ -3353,10 +3949,8 @@ persistent actor ArcadeBackend {
           txId = game.txId; createdAt = game.createdAt;
         };
         gameSubmissions.put(gameId, updated);
-        // Refund minus 2.5 ICP, tracked separately from creator earnings.
-        let refundAmount = 7_500_000_000; // 7.5 ICP (10 - 2.5)
-        creditRefundE8s(game.creator, refundAmount);
-        #ok("Game removed. 7.5 ICP refund credited (2.5 ICP removal fee).");
+        deleteAllPendingUploadsForGameId(gameId);
+        #ok("Game removed. No refund issued.");
       };
     };
   };
@@ -3696,55 +4290,106 @@ persistent actor ArcadeBackend {
   };
 
   // ============================================
-  // === NFT ESCROW (EXT + ICRC-7) ===
-  // ============================================
+  // === TOKEN TIPS (The Back) ===
+  // Tokens are already fully backed 1:1 by real ICP already in canister custody (verified in the
+  // solvency audit), so a Token tip converts at the same 1 ICP = 100 Tokens rate used everywhere
+  // else and credits a genuinely separate claimable pool from royalties — kept apart per Jay's
+  // explicit request, rather than merged into the existing royalties balance. Real ICP tips
+  // (recordIcpTip) are deliberately left untouched: those go directly wallet-to-wallet and were
+  // never routed through canister custody, so there is nothing to claim for that path.
+  let TOKEN_TIP_E8S_PER_TOKEN : Nat = 1_000_000; // 100 Tokens = 1 ICP, same rate as convertDepositToTokens
 
-  /// Confirm that an EXT NFT has been transferred to the arcade canister (escrow)
-  /// Verifies on-chain via bearer() that backend now holds the NFT
-  public shared(msg) func confirmExtEscrow(listingId : Text, canisterId : Text, extTokenId : Text) : async Result.Result<Text, Text> {
+  public shared(msg) func tipCreatorWithTokens(gameId : Text, tokenAmount : Nat) : async Result.Result<Text, Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    if (tokenAmount == 0) return #err("Tip amount must be greater than zero");
+    hydrateRuntimeStateIfNeeded();
+    let game = switch (gameSubmissions.get(gameId)) {
+      case null return #err("Game not found");
+      case (?g) g;
+    };
+    if (game.status != "live") return #err("Game is not live");
+    if (Principal.equal(game.creator, caller)) return #err("You cannot tip your own game");
+    let balance = getTokenBalance(caller);
+    if (balance < tokenAmount) {
+      return #err("Not enough Tokens. Have " # Nat.toText(balance) # ", need " # Nat.toText(tokenAmount));
+    };
+    tokens.put(caller, balance - tokenAmount);
+    let tipE8s = tokenAmount * TOKEN_TIP_E8S_PER_TOKEN;
+    restoreTipEarningsBalance(game.creator, tipE8s);
+    #ok("Tip sent")
+  };
+
+  public query func getTipEarningsBalanceOf(creator : Principal) : async Nat {
+    getTipEarningsBalance(creator)
+  };
+
+  /// Claims the caller's Token-tip earnings pool only — deliberately separate from claimRoyalties,
+  /// per Jay's request for a distinct claim button on the creator earnings page.
+  public shared(msg) func claimTipEarnings() : async Result.Result<Nat, Text> {
     let caller = msg.caller;
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     hydrateRuntimeStateIfNeeded();
-    switch (nftListings.get(listingId)) {
-      case null { return #err("Listing not found: " # listingId) };
-      case (?listing) {
-        if (not Principal.equal(listing.creator, caller) and not isAdmin(caller)) return #err("Not the listing owner");
-        if (not Text.equal(listing.sourceCanisterId, canisterId)) return #err("Escrow canister mismatch: expected " # listing.sourceCanisterId # ", got " # canisterId);
-        if (not Text.equal(listing.sourceTokenKey, extTokenId)) return #err("Escrow token mismatch: expected " # listing.sourceTokenKey # ", got " # extTokenId);
-        switch (escrows.get(listingId)) {
-          case (?existing) {
-            if (existing.status == "held") {
-              // Escrow already confirmed on a previous call — self-heal the listing status if
-              // it's still stuck at pending_escrow (this was a real bug: earlier versions of
-              // this function never promoted the listing itself), otherwise nothing to do.
-              if (listing.status == "pending_escrow") {
-                let healedListing : NftListing = { id = listing.id; listingType = listing.listingType; name = listing.name; description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost; imageUrl = listing.imageUrl; creator = listing.creator; tier = listing.tier; status = "live"; feePaid = listing.feePaid; showroomFeePaid = listing.showroomFeePaid; txId = listing.txId; createdAt = listing.createdAt; sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId; sourceTokenKey = listing.sourceTokenKey; collectionName = listing.collectionName; };
-                nftListings.put(listingId, healedListing);
-                return #ok("✅ Listing status repaired — EXT NFT was already escrowed.");
-              };
-              return #err("NFT already escrowed");
-            };
-          };
-          case null {};
-        };
-        try {
-          let extActor = getExtActor(canisterId);
-          let bearerResult = await extActor.bearer(extTokenId);
-          switch (bearerResult) {
-            case (#ok(accountId)) {
-              if (not Text.equal(accountId, arcadeExtAccountId())) return #err(extHoldMismatchMessage(accountId));
-              let escrow : EscrowedNft = { listingId; canisterId; tokenId = extTokenId; standard = "ext"; depositor = listing.creator; depositedAt = Time.now(); status = "held"; redeemedBy = null; redeemedAt = null; };
-              escrows.put(listingId, escrow);
-              let updatedListing : NftListing = { id = listing.id; listingType = listing.listingType; name = listing.name; description = listing.description; rarity = listing.rarity; ticketCost = listing.ticketCost; imageUrl = listing.imageUrl; creator = listing.creator; tier = listing.tier; status = if (listing.status == "pending_escrow") "live" else listing.status; feePaid = listing.feePaid; showroomFeePaid = listing.showroomFeePaid; txId = listing.txId; createdAt = listing.createdAt; sourceCanisterId = listing.sourceCanisterId; sourceTokenId = listing.sourceTokenId; sourceTokenKey = extTokenId; collectionName = listing.collectionName; };
-              nftListings.put(listingId, updatedListing);
-              #ok("✅ EXT NFT escrowed! " # listing.name # " is now available for purchase.");
-            };
-            case (#err(e)) { switch (e) { case (#InvalidToken(_)) { #err("Invalid EXT token identifier") }; case (#Other(msg2)) { #err("Bearer check failed: " # msg2) }; }; };
-          };
-        } catch (e) { #err("EXT verification failed: " # Error.message(e)); };
-      };
+    let balance = getTipEarningsBalance(caller);
+    if (balance == 0) return #err("No claimable tip earnings");
+    if (balance < ROYALTY_CLAIM_MIN_E8S) {
+      return #err(
+        "Minimum tip claim is " # Nat.toText(ROYALTY_CLAIM_MIN_E8S) #
+        " e8s; current balance is " # Nat.toText(balance) # " e8s"
+      );
     };
+    tipEarnings.put(caller, 0);
+    let callerSub = principalToSubaccount(caller);
+    let selfPrincipal = Principal.fromActor(ArcadeBackend);
+    try {
+      let result = await ICP_LEDGER.icrc1_transfer({
+        to = { owner = selfPrincipal; subaccount = ?callerSub };
+        fee = null;
+        memo = null;
+        from_subaccount = null;
+        created_at_time = null;
+        amount = balance;
+      });
+      switch (result) {
+        case (#Ok(_blockIndex)) { #ok(balance) };
+        case (#Err(e)) {
+          restoreTipEarningsBalance(caller, balance);
+          switch (e) {
+            case (#InsufficientFunds(f)) {
+              #err("Treasury has insufficient funds: " # Nat.toText(f.balance) # " e8s available")
+            };
+            case (#BadFee(f)) {
+              #err("Bad fee while claiming tip earnings: expected " # Nat.toText(f.expected_fee))
+            };
+            case (#GenericError(ge)) {
+              #err("Ledger error " # Nat.toText(ge.error_code) # ": " # ge.message)
+            };
+            case (_) { #err("Tip claim transfer failed") };
+          }
+        };
+      }
+    } catch (e) {
+      restoreTipEarningsBalance(caller, balance);
+      #err("Tip claim transfer error: " # Error.message(e))
+    }
   };
+
+  /// Lifetime total of real ICP sent directly to this creator via the wallet-to-wallet ICP tip
+  /// path, across every game they've created — for the display-only "ICP received via tips" box
+  /// on the creator earnings page. This ICP was never in canister custody, so there is nothing to
+  /// claim here; it's purely informational.
+  public query func getCreatorIcpTipTotal(creator : Principal) : async Nat {
+    let source = if (runtimeStateHydrated) { Buffer.toArray(tipReceipts) } else { tipReceiptEntries };
+    var total : Nat = 0;
+    for (receipt in source.vals()) {
+      if (Principal.equal(receipt.creator, creator)) { total += receipt.amountE8s };
+    };
+    total
+  };
+
+  // ============================================
+  // === NFT ESCROW (ICRC-7) ===
+  // ============================================
 
   /// Confirm DIP-721 NFT escrow — verifies ownerOfDip721 returns this canister
   public shared(msg) func confirmDip721Escrow(listingId : Text, canisterId : Text, tokenId : Nat64) : async Result.Result<Text, Text> {
@@ -3898,13 +4543,7 @@ persistent actor ArcadeBackend {
 
             // Attempt transfer based on standard
             // Transfer NFT based on standard
-            let transferOk : Result.Result<Text, Text> = if (escrow.standard == "ext") {
-              try {
-                let extActor = getExtActor(escrow.canisterId);
-                let r = await extActor.transfer({ from = #principal(Principal.fromActor(ArcadeBackend)); to = #principal(caller); token = escrow.tokenId; amount = 1; memo = Blob.fromArray([]); notify = false; subaccount = null; });
-                switch (r) { case (#ok(_)) { #ok("ok") }; case (#err(e)) { let m = switch (e) { case (#Unauthorized(_)) { "Unauthorized" }; case (#InsufficientBalance) { "InsufficientBalance" }; case (#Rejected) { "Rejected" }; case (#InvalidToken(_)) { "InvalidToken" }; case (#CannotNotify(_)) { "CannotNotify" }; case (#Other(msg2)) { msg2 }; }; #err("EXT: " # m) }; };
-              } catch (e) { #err("EXT call failed: " # Error.message(e)) };
-            } else if (escrow.standard == "dip721") {
+            let transferOk : Result.Result<Text, Text> = if (escrow.standard == "dip721") {
               try {
                 let dip721 = getDip721Actor(escrow.canisterId);
                 let self = Principal.fromActor(ArcadeBackend);
@@ -3963,13 +4602,7 @@ persistent actor ArcadeBackend {
         if (escrow.status != "held") return #err("Escrow status is " # escrow.status # " — cannot return");
 
         let self = Principal.fromActor(ArcadeBackend);
-        let returnOk : Result.Result<Text, Text> = if (escrow.standard == "ext") {
-          try {
-            let extActor = getExtActor(escrow.canisterId);
-            let r = await extActor.transfer({ from = #principal(self); to = #principal(escrow.depositor); token = escrow.tokenId; amount = 1; memo = Blob.fromArray([]); notify = false; subaccount = null; });
-            switch (r) { case (#ok(_)) { #ok("ok") }; case (#err(_)) { #err("EXT return failed") }; };
-          } catch (e) { #err("EXT call: " # Error.message(e)) };
-        } else if (escrow.standard == "dip721") {
+        let returnOk : Result.Result<Text, Text> = if (escrow.standard == "dip721") {
           try {
             let dip721 = getDip721Actor(escrow.canisterId);
             let tidNat2 : Nat = switch (Nat.fromText(escrow.tokenId)) { case (?n) n; case null 0; };
@@ -4032,7 +4665,7 @@ persistent actor ArcadeBackend {
 
   /// Get revenue summary by type
   public query func getRevenueSummary() : async [(Text, Nat)] {
-    let types = ["nft-list", "nft-mint", "nft-showroom", "game-backroom", "game-showroom", "token-purchase", "nft-redeem"];
+    let types = ["nft-list", "nft-mint", "nft-showroom", "game-backroom", "game-showroom", "token-purchase", "nft-redeem", "blackhole-submit"];
     Array.map<Text, (Text, Nat)>(types, func(t) {
       var total : Nat = 0;
       for (e in revenueLogEntries.vals()) {
@@ -4345,6 +4978,59 @@ persistent actor ArcadeBackend {
     await adminWithdrawOperatingTreasuryImpl(destination, amountE8s)
   };
 
+  func adminWithdrawBlackholeTreasuryImpl(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (blackholeTreasuryWithdrawalInFlight) return #err("Blackhole Treasury withdrawal already in progress");
+    if (amountE8s <= ICP_LEDGER_FEE_E8S) {
+      return #err("Blackhole Treasury withdrawal amount must exceed ledger fee dust: " # Nat.toText(ICP_LEDGER_FEE_E8S) # " e8s");
+    };
+
+    let selfPrincipal = Principal.fromActor(ArcadeBackend);
+    let requiredE8s = amountE8s + ICP_LEDGER_FEE_E8S;
+    blackholeTreasuryWithdrawalInFlight := true;
+    try {
+      let blackholeBalanceE8s = await ICP_LEDGER_ICRC1.icrc1_balance_of({ owner = selfPrincipal; subaccount = ?BLACKHOLE_TREASURY_SUBACCOUNT });
+      if (blackholeBalanceE8s < requiredE8s) {
+        blackholeTreasuryWithdrawalInFlight := false;
+        return #err(
+          "Blackhole Treasury has insufficient funds: " # Nat.toText(blackholeBalanceE8s) #
+          " e8s available; need " # Nat.toText(requiredE8s) # " e8s including fee"
+        );
+      };
+
+      let result = await ICP_LEDGER.icrc1_transfer({
+        to = destination;
+        fee = null;
+        memo = null;
+        from_subaccount = ?BLACKHOLE_TREASURY_SUBACCOUNT;
+        created_at_time = null;
+        amount = amountE8s;
+      });
+      blackholeTreasuryWithdrawalInFlight := false;
+      switch (result) {
+        case (#Ok(blockIndex)) { #ok(blockIndex) };
+        case (#Err(e)) { #err(icpTransferErrorText("Blackhole Treasury withdrawal", e)) };
+      }
+    } catch (e) {
+      blackholeTreasuryWithdrawalInFlight := false;
+      #err("Blackhole Treasury withdrawal transfer error: " # Error.message(e))
+    }
+  };
+
+  /// Admin-only withdrawal from the dedicated Blackhole Treasury subaccount.
+  /// Amount is the net ICP e8s sent to destination; the subaccount must also cover the ledger fee.
+  public shared(msg) func adminWithdrawBlackholeTreasury(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    await adminWithdrawBlackholeTreasuryImpl(destination, amountE8s)
+  };
+
+  /// Read-only: current live balance of the dedicated Blackhole Treasury subaccount (admin only).
+  public shared(msg) func getBlackholeTreasuryBalance() : async Result.Result<Nat, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    let selfPrincipal = Principal.fromActor(ArcadeBackend);
+    let balanceE8s = await ICP_LEDGER_ICRC1.icrc1_balance_of({ owner = selfPrincipal; subaccount = ?BLACKHOLE_TREASURY_SUBACCOUNT });
+    #ok(balanceE8s)
+  };
+
   /// Admin-only withdrawal from the separated Operating Treasury subaccount to a raw ICP ledger account ID.
   /// Amount is the net ICP e8s sent; the operating subaccount must also cover the classic ledger fee.
   public shared(msg) func adminWithdrawOperatingTreasuryToAccountId(toAccountHex : Text, amountE8s : Nat) : async Result.Result<Nat, Text> {
@@ -4483,6 +5169,359 @@ persistent actor ArcadeBackend {
     } catch (e) {
       #err("ICP conversion failed: " # Error.message(e))
     }
+  };
+
+  // ============ BLACKHOLE (Hole submissions) ============
+  // Real implementation — was previously entirely fake: every one of these functions was declared
+  // in the frontend's Candid IDL and called by the UI, but none existed anywhere in this backend,
+  // so every call failed with "method not found" (IC0536), silently caught by the frontend and
+  // shown as "Blackhole is waking up" / "still syncing" forever.
+
+  func findHoleSubmission(id : Text) : ?HoleSubmission {
+    for (s in holeSubmissionEntries.vals()) {
+      if (s.id == id) { return ?s };
+    };
+    null
+  };
+
+  func activeHoleSubmissionCount(who : Principal) : Nat {
+    var n = 0;
+    for (s in holeSubmissionEntries.vals()) {
+      if (Principal.equal(s.creator, who) and s.status == "active") { n += 1 };
+    };
+    n
+  };
+
+  func findHolePunishment(who : Principal) : ?HolePunishment {
+    for (p in holePunishmentEntries.vals()) {
+      if (Principal.equal(p.principal, who)) { return ?p };
+    };
+    null
+  };
+
+  // Returns the active punishment reason, if any (null once a soft punishment's window has passed).
+  func holePunishmentReason(who : Principal) : ?Text {
+    switch (findHolePunishment(who)) {
+      case null { null };
+      case (?p) {
+        if (p.permanent) { ?p.reason }
+        else if (Time.now() < p.until) { ?p.reason }
+        else { null };
+      };
+    }
+  };
+
+  func findHoleVote(submissionId : Text, voter : Principal) : ?HoleVote {
+    for (v in holeVoteEntries.vals()) {
+      if (v.submissionId == submissionId and Principal.equal(v.voter, voter)) { return ?v };
+    };
+    null
+  };
+
+  // (likes, dislikes) for one submission. Low-volume linear scan — fine at current scale;
+  // revisit with a real index (same pattern as the forum-thread/badge indexes built earlier)
+  // if vote volume ever grows large enough for this to show up in cycle cost.
+  func holeVoteCounts(id : Text) : (Nat, Nat) {
+    var likes = 0; var dislikes = 0;
+    for (v in holeVoteEntries.vals()) {
+      if (v.submissionId == id) { if (v.isLike) { likes += 1 } else { dislikes += 1 } };
+    };
+    (likes, dislikes)
+  };
+
+  func findGameVote(gameId : Text, voter : Principal) : ?GameVote {
+    for (v in gameVoteEntries.vals()) {
+      if (v.gameId == gameId and Principal.equal(v.voter, voter)) { return ?v };
+    };
+    null
+  };
+
+  // Low-volume linear scan — same reasoning as holeVoteCounts above; revisit if game vote volume
+  // ever grows large enough to show up in cycle cost.
+  func gameVoteCounts(gameId : Text) : (Nat, Nat) {
+    var likes = 0; var dislikes = 0;
+    for (v in gameVoteEntries.vals()) {
+      if (v.gameId == gameId) { if (v.isLike) { likes += 1 } else { dislikes += 1 } };
+    };
+    (likes, dislikes)
+  };
+
+  /// Toggleable: voting the same way you already voted removes your vote; voting the other way
+  /// changes it. Any connected user may vote — no Voting Power requirement.
+  public shared(msg) func voteGameApproval(gameId : Text, isLike : Bool) : async Result.Result<Text, Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Connect wallet to vote");
+    hydrateRuntimeStateIfNeeded();
+    if (Option.isNull(gameSubmissions.get(gameId))) return #err("Game not found");
+    let existing = findGameVote(gameId, caller);
+    let withoutMine = Array.filter<GameVote>(gameVoteEntries, func(v) {
+      not (v.gameId == gameId and Principal.equal(v.voter, caller))
+    });
+    switch (existing) {
+      case (?v) {
+        if (v.isLike == isLike) {
+          // Same vote again: remove it (toggle off)
+          gameVoteEntries := withoutMine;
+          #ok("Vote removed")
+        } else {
+          gameVoteEntries := Array.append<GameVote>(withoutMine, [{ gameId; voter = caller; isLike; timestamp = Time.now() }]);
+          #ok(if (isLike) "Liked" else "Disliked")
+        }
+      };
+      case null {
+        gameVoteEntries := Array.append<GameVote>(withoutMine, [{ gameId; voter = caller; isLike; timestamp = Time.now() }]);
+        #ok(if (isLike) "Liked" else "Disliked")
+      };
+    }
+  };
+
+  // Batched read: for each game id, returns (likes, dislikes, myVote) in one call — same shape as
+  // getHoleVoteSummary, so a list of game cards can render vote state without a round-trip per card.
+  public query func getGameVoteSummary(ids : [Text], who : Principal) : async [(Text, Nat, Nat, ?Bool)] {
+    Array.map<Text, (Text, Nat, Nat, ?Bool)>(ids, func(id) {
+      let (likes, dislikes) = gameVoteCounts(id);
+      let mine = switch (findGameVote(id, who)) { case (?v) { ?v.isLike }; case null { null } };
+      (id, likes, dislikes, mine)
+    })
+  };
+
+  public shared(msg) func submitHoleLink(title : Text, description : Text, url : Text) : async Result.Result<Text, Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Connect wallet to submit to Blackhole");
+    switch (holePunishmentReason(caller)) {
+      case (?reason) { return #err("You are restricted from submitting to Blackhole: " # reason) };
+      case null {};
+    };
+    if (Text.size(title) == 0 or Text.size(description) == 0 or Text.size(url) == 0) {
+      return #err("Fill out all three fields");
+    };
+    hydrateRuntimeStateIfNeeded();
+    if (activeHoleSubmissionCount(caller) >= 3) {
+      return #err("Max 3 active Hole submissions. Delete one before adding another.");
+    };
+
+    let ledgerFeeE8s = 10_000;
+    let fromSub = principalToSubaccount(caller);
+    let selfPrincipal = Principal.fromActor(ArcadeBackend);
+    let bal = await ICP_LEDGER_ICRC1.icrc1_balance_of({ owner = selfPrincipal; subaccount = ?fromSub });
+    if (bal < HOLE_SUBMISSION_FEE_E8S + ledgerFeeE8s) {
+      return #err(
+        "Not enough ICP in your arcade deposit. Blackhole submission costs 1 ICP. Available " #
+        Nat.toText(bal) # " e8s; need " # Nat.toText(HOLE_SUBMISSION_FEE_E8S + ledgerFeeE8s) # " e8s including ledger fee."
+      );
+    };
+
+    try {
+      // Fee routes straight into the Operating Treasury subaccount — never touches the main
+      // account that backs Tokens/Tickets, matching admin's request that this go to a safely
+      // withdrawable profit pool.
+      let transferResult = await ICP_LEDGER.icrc1_transfer({
+        to = { owner = selfPrincipal; subaccount = ?BLACKHOLE_TREASURY_SUBACCOUNT };
+        fee = null;
+        memo = null;
+        from_subaccount = ?fromSub;
+        created_at_time = null;
+        amount = HOLE_SUBMISSION_FEE_E8S;
+      });
+      switch (transferResult) {
+        case (#Ok(blockIndex)) {
+          if (Option.isSome(claimedSet.get(blockIndex))) {
+            return #err("Duplicate ICP ledger transfer: block " # Nat.toText(blockIndex));
+          };
+          claimedSet.put(blockIndex, true);
+          holeSubmissionCounter += 1;
+          let id = "hole-" # Nat.toText(holeSubmissionCounter);
+          let creatorName = switch (playerProfiles.get(caller)) {
+            case (?p) { p.name };
+            case null { Principal.toText(caller) };
+          };
+          let submission : HoleSubmission = {
+            id;
+            title;
+            description;
+            url;
+            creator = caller;
+            creatorNameSnapshot = creatorName;
+            createdAt = Time.now();
+            upvotes = 0;
+            status = "active";
+            isLegendary = false;
+          };
+          holeSubmissionEntries := Array.append<HoleSubmission>(holeSubmissionEntries, [submission]);
+          logRevenue("blackhole-submit", HOLE_SUBMISSION_FEE_E8S, caller, 7);
+          #ok(id)
+        };
+        case (#Err(e)) { #err(icpTransferErrorText("Blackhole submission fee", e)) };
+      }
+    } catch (e) {
+      #err("Blackhole submission fee transfer error: " # Error.message(e))
+    }
+  };
+
+  public query func getHoleSubmissions(sortBy : Text) : async [HoleSubmission] {
+    let active = Array.filter<HoleSubmission>(holeSubmissionEntries, func(s) { s.status == "active" });
+    if (sortBy == "top") {
+      // Top Signal only shows submissions that have actually earned at least one like — a brand
+      // new upload with zero engagement shouldn't appear here just because nothing else exists
+      // yet; it belongs in Newest until the community actually likes it.
+      let liked = Array.filter<HoleSubmission>(active, func(s) { let (likes, _) = holeVoteCounts(s.id); likes > 0 });
+      let arr = Array.thaw<HoleSubmission>(liked);
+      Array.sortInPlace<HoleSubmission>(arr, func(a, b) {
+        let (aLikes, aDislikes) = holeVoteCounts(a.id);
+        let (bLikes, bDislikes) = holeVoteCounts(b.id);
+        let aScore : Int = aLikes - aDislikes;
+        let bScore : Int = bLikes - bDislikes;
+        Int.compare(bScore, aScore)
+      });
+      Array.freeze<HoleSubmission>(arr)
+    } else {
+      let arr = Array.thaw<HoleSubmission>(active);
+      Array.sortInPlace<HoleSubmission>(arr, func(a, b) { Int.compare(b.createdAt, a.createdAt) });
+      Array.freeze<HoleSubmission>(arr)
+    }
+  };
+
+  public query func getHoleSubmission(id : Text) : async ?HoleSubmission {
+    switch (findHoleSubmission(id)) {
+      case (?s) { if (s.status == "active") { ?s } else { null } };
+      case null { null };
+    }
+  };
+
+  public query func getMyHoleSubmissions(who : Principal) : async [HoleSubmission] {
+    Array.filter<HoleSubmission>(holeSubmissionEntries, func(s) {
+      Principal.equal(s.creator, who) and s.status == "active"
+    })
+  };
+
+  public shared(msg) func deleteHoleSubmission(id : Text) : async Result.Result<Text, Text> {
+    switch (findHoleSubmission(id)) {
+      case null { #err("Submission not found") };
+      case (?s) {
+        if (not (Principal.equal(s.creator, msg.caller) or isAdmin(msg.caller) or isModerator(msg.caller))) {
+          return #err("Not authorized to delete this submission");
+        };
+        holeSubmissionEntries := Array.map<HoleSubmission, HoleSubmission>(holeSubmissionEntries, func(item) {
+          if (item.id == id) {
+            {
+              id = item.id; title = item.title; description = item.description; url = item.url;
+              creator = item.creator; creatorNameSnapshot = item.creatorNameSnapshot; createdAt = item.createdAt;
+              upvotes = item.upvotes; status = "deleted"; isLegendary = item.isLegendary;
+            }
+          } else { item }
+        });
+        #ok("Submission deleted")
+      };
+    }
+  };
+
+  // VP-gated like/dislike voting. One vote per principal per submission regardless of how much
+  // voting power they hold (not weighted) — self-voting on your own submission is allowed, and
+  // once cast a vote cannot be switched or removed, per Jay's spec.
+  public shared(msg) func voteHoleSubmission(id : Text, isLike : Bool) : async Result.Result<Text, Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Connect wallet to vote");
+    if (votingPowerOf(caller) == 0) return #err("Only Voting Power holders can vote on Blackhole submissions");
+    switch (findHoleSubmission(id)) {
+      case null { return #err("Submission not found") };
+      case (?s) { if (s.status != "active") return #err("Submission not found") };
+    };
+    if (Option.isSome(findHoleVote(id, caller))) {
+      return #err("You've already voted on this submission");
+    };
+    holeVoteEntries := Array.append<HoleVote>(holeVoteEntries, [{ submissionId = id; voter = caller; isLike; timestamp = Time.now() }]);
+    #ok(if (isLike) "Liked" else "Disliked")
+  };
+
+  // Batched read: for each submission id, returns (likes, dislikes, myVote) in one call, so a
+  // list of submissions can render vote counts and this viewer's own vote state without a
+  // round-trip per card.
+  public query func getHoleVoteSummary(ids : [Text], who : Principal) : async [(Text, Nat, Nat, ?Bool)] {
+    Array.map<Text, (Text, Nat, Nat, ?Bool)>(ids, func(id) {
+      let (likes, dislikes) = holeVoteCounts(id);
+      let mine = switch (findHoleVote(id, who)) { case (?v) { ?v.isLike }; case null { null } };
+      (id, likes, dislikes, mine)
+    })
+  };
+
+  public shared(msg) func upvoteHoleSubmission(id : Text) : async Result.Result<Nat, Text> {
+    if (Principal.isAnonymous(msg.caller)) return #err("Connect wallet to signal approval");
+    switch (findHoleSubmission(id)) {
+      case null { #err("Submission not found") };
+      case (?s) {
+        if (s.status != "active") return #err("Submission not found");
+        let newUpvotes = s.upvotes + 1;
+        holeSubmissionEntries := Array.map<HoleSubmission, HoleSubmission>(holeSubmissionEntries, func(item) {
+          if (item.id == id) {
+            {
+              id = item.id; title = item.title; description = item.description; url = item.url;
+              creator = item.creator; creatorNameSnapshot = item.creatorNameSnapshot; createdAt = item.createdAt;
+              upvotes = newUpvotes; status = item.status; isLegendary = item.isLegendary;
+            }
+          } else { item }
+        });
+        #ok(newUpvotes)
+      };
+    }
+  };
+
+  public shared(msg) func setHoleLegendary(id : Text, isLegendary : Bool) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    switch (findHoleSubmission(id)) {
+      case null { #err("Submission not found") };
+      case (?s) {
+        holeSubmissionEntries := Array.map<HoleSubmission, HoleSubmission>(holeSubmissionEntries, func(item) {
+          if (item.id == id) {
+            {
+              id = item.id; title = item.title; description = item.description; url = item.url;
+              creator = item.creator; creatorNameSnapshot = item.creatorNameSnapshot; createdAt = item.createdAt;
+              upvotes = item.upvotes; status = item.status; isLegendary = isLegendary;
+            }
+          } else { item }
+        });
+        #ok(if (isLegendary) "DAO Favorite granted" else "DAO Favorite removed")
+      };
+    }
+  };
+
+  // Admin-only for now — Jay's to-do: extend this power to moderators once the moderator-powers
+  // system is built out.
+  public shared(msg) func adminSoftPunishBlackholeUploader(who : Principal, reason : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    let punishment : HolePunishment = { principal = who; until = Time.now() + HOLE_SOFT_PUNISH_NS; permanent = false; reason };
+    holePunishmentEntries := Array.append<HolePunishment>(
+      Array.filter<HolePunishment>(holePunishmentEntries, func(p) { not Principal.equal(p.principal, who) }),
+      [punishment]
+    );
+    #ok("Uploader soft-punished for 7 days")
+  };
+
+  // Admin-only for now — same to-do as above. Hard ban also removes the uploader's existing
+  // active submissions, since a permanent ban is reserved for real abuse (not just a cooldown).
+  public shared(msg) func adminHardBanBlackholeUploader(who : Principal, reason : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    let punishment : HolePunishment = { principal = who; until = 0; permanent = true; reason };
+    holePunishmentEntries := Array.append<HolePunishment>(
+      Array.filter<HolePunishment>(holePunishmentEntries, func(p) { not Principal.equal(p.principal, who) }),
+      [punishment]
+    );
+    holeSubmissionEntries := Array.map<HoleSubmission, HoleSubmission>(holeSubmissionEntries, func(item) {
+      if (Principal.equal(item.creator, who) and item.status == "active") {
+        {
+          id = item.id; title = item.title; description = item.description; url = item.url;
+          creator = item.creator; creatorNameSnapshot = item.creatorNameSnapshot; createdAt = item.createdAt;
+          upvotes = item.upvotes; status = "deleted"; isLegendary = item.isLegendary;
+        }
+      } else { item }
+    });
+    #ok("Uploader permanently banned from Blackhole")
+  };
+
+  // Admin-only for now — same to-do as above.
+  public shared(msg) func adminClearBlackholePunishment(who : Principal) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    holePunishmentEntries := Array.filter<HolePunishment>(holePunishmentEntries, func(p) { not Principal.equal(p.principal, who) });
+    #ok("Blackhole punishment cleared")
   };
 
   // Withdraw ICP from user's arcade deposit to a principal
@@ -4638,117 +5677,6 @@ persistent actor ArcadeBackend {
   // ICP Ledger ICRC-1 balance query (uses principal + subaccount, not account ID)
   type Icrc1Account = { owner : Principal; subaccount : ?Blob };
   transient let ICP_LEDGER_ICRC1 : actor { icrc1_balance_of : shared query Icrc1Account -> async Nat } = actor("ryjl3-tyaaa-aaaaa-aaaba-cai");
-
-  // Debug: return the subaccount hex and check balance via ICRC-1
-  func registerHeldExtNftImpl(
-    name : Text, description : Text, rarity : Text, ticketCost : Nat,
-    imageUrl : Text, canisterId : Text, extTokenId : Text,
-    collectionName : Text, creatorPrincipal : Principal
-  ) : async Result.Result<Text, Text> {
-    hydrateRuntimeStateIfNeeded();
-    if (Text.size(name) == 0) return #err("Name required");
-    if (Text.size(canisterId) == 0) return #err("EXT canister ID required");
-    if (Text.size(extTokenId) == 0) return #err("EXT token identifier required");
-    if (ticketCost < 25) return #err("Minimum ticket cost is 25");
-
-    try {
-      let extActor = getExtActor(canisterId);
-      let bearerResult = await extActor.bearer(extTokenId);
-      switch (bearerResult) {
-        case (#ok(accountId)) {
-          if (not Text.equal(accountId, arcadeExtAccountId())) return #err(extHoldMismatchMessage(accountId));
-        };
-        case (#err(e)) {
-          let msg = switch (e) { case (#InvalidToken(_)) { "Invalid EXT token identifier" }; case (#Other(msg2)) { msg2 } };
-          return #err("Bearer check failed: " # msg # ". Expected/current arcade account: " # arcadeExtAccountId());
-        };
-      };
-    } catch (e) { return #err("EXT bearer check failed: " # Error.message(e)) };
-
-    let id = genListingId("nft-ex");
-    let listing : NftListing = {
-      id = id; listingType = "existing"; name = name; description = description;
-      rarity = rarity; ticketCost = ticketCost; imageUrl = imageUrl;
-      creator = creatorPrincipal; tier = "open"; status = "live";
-      feePaid = 0; showroomFeePaid = 0; txId = 0;
-      createdAt = Time.now(); sourceCanisterId = canisterId;
-      sourceTokenId = 0; sourceTokenKey = extTokenId; collectionName = collectionName;
-    };
-    nftListings.put(id, listing);
-    let escrow : EscrowedNft = {
-      listingId = id; canisterId = canisterId; tokenId = extTokenId;
-      standard = "ext"; depositor = creatorPrincipal; depositedAt = Time.now();
-      status = "held"; redeemedBy = null; redeemedAt = null;
-    };
-    escrows.put(id, escrow);
-    #ok(id)
-  };
-
-  // Admin: register an already-held EXT NFT (creates listing + escrow in one call)
-  public shared(msg) func adminRegisterHeldExtNft(
-    name : Text, description : Text, rarity : Text, ticketCost : Nat,
-    imageUrl : Text, canisterId : Text, extTokenId : Text,
-    collectionName : Text, creatorPrincipal : Principal
-  ) : async Result.Result<Text, Text> {
-    if (not isAdmin(msg.caller)) return #err("Admin only");
-    await registerHeldExtNftImpl(name, description, rarity, ticketCost, imageUrl, canisterId, extTokenId, collectionName, creatorPrincipal)
-  };
-
-  // Legacy-compatible wrapper retained for existing admin tooling.
-  public shared(msg) func adminRegisterHeldNft(
-    name : Text, description : Text, rarity : Text, ticketCost : Nat,
-    imageUrl : Text, canisterId : Text, extTokenId : Text,
-    collectionName : Text, creatorPrincipal : Principal
-  ) : async Result.Result<Text, Text> {
-    if (not isAdmin(msg.caller)) return #err("Admin only");
-    await registerHeldExtNftImpl(name, description, rarity, ticketCost, imageUrl, canisterId, extTokenId, collectionName, creatorPrincipal)
-  };
-
-  // Admin: return an orphaned held EXT NFT by account id even when no escrow/listing exists.
-  public shared(msg) func adminReturnHeldExtNft(canisterId : Text, extTokenId : Text, toAccountId : Text) : async Result.Result<Text, Text> {
-    if (not isAdmin(msg.caller)) return #err("Admin only");
-    hydrateRuntimeStateIfNeeded();
-    if (Text.size(canisterId) == 0) return #err("EXT canister ID required");
-    if (Text.size(extTokenId) == 0) return #err("EXT token identifier required");
-    if (Text.size(Text.trim(toAccountId, #char ' ')) == 0) return #err("Recipient EXT account id required");
-
-    try {
-      let extActor = getExtActor(canisterId);
-      let bearerResult = await extActor.bearer(extTokenId);
-      switch (bearerResult) {
-        case (#ok(accountId)) {
-          if (not Text.equal(accountId, arcadeExtAccountId())) return #err(extHoldMismatchMessage(accountId));
-        };
-        case (#err(e)) {
-          let msg = switch (e) { case (#InvalidToken(_)) { "Invalid EXT token identifier" }; case (#Other(msg2)) { msg2 } };
-          return #err("Bearer check failed: " # msg # ". Expected/current arcade account: " # arcadeExtAccountId());
-        };
-      };
-
-      let r = await extActor.transfer({ from = #principal(Principal.fromActor(ArcadeBackend)); to = #address(toAccountId); token = extTokenId; amount = 1; memo = Blob.fromArray([]); notify = false; subaccount = null; });
-      switch (r) {
-        case (#ok(_)) { #ok("EXT NFT returned to account " # toAccountId) };
-        case (#err(e)) {
-          let m = switch (e) { case (#Unauthorized(msg2)) { "Unauthorized: " # msg2 }; case (#InsufficientBalance) { "InsufficientBalance" }; case (#Rejected) { "Rejected" }; case (#InvalidToken(msg2)) { "InvalidToken: " # msg2 }; case (#CannotNotify(msg2)) { "CannotNotify: " # msg2 }; case (#Other(msg2)) { msg2 }; };
-          #err("EXT return failed: " # m)
-        };
-      }
-    } catch (e) { #err("EXT return call failed: " # Error.message(e)) }
-  };
-
-  // Check who holds an EXT NFT
-  public func checkExtBearer(canisterId : Text, tokenId : Text) : async Result.Result<Text, Text> {
-    try {
-      let extActor = getExtActor(canisterId);
-      let resp = await extActor.bearer(tokenId);
-      switch (resp) {
-        case (#ok(accountId)) { #ok(accountId) };
-        case (#err(_)) { #err("Token not found or error") };
-      }
-    } catch (e) {
-      #err("Call failed: " # Error.message(e))
-    }
-  };
 
   public shared(msg) func debugSubaccount() : async { subHex : Text; callerText : Text; selfText : Text; balanceE8s : Nat } {
     let caller = msg.caller;
@@ -4973,6 +5901,94 @@ persistent actor ArcadeBackend {
     if (not found) return #err("Thread not found");
     switch (updatedThread) { case (?t) { threadsById.put(t.id, t) }; case null {} };
     #ok(replyId)
+  };
+
+  /// Real thread deletion — was previously entirely fake on the frontend (local cache/localStorage
+  /// only, never touched the backend, so "deleted" threads reappeared for anyone else and on
+  /// refresh). Soft-deletes via the existing `deleted` flag (already read by publicForumThread,
+  /// but never set anywhere until now) rather than removing the record outright.
+  public shared(msg) func adminDeleteForumThread(threadId : Text) : async Result.Result<Text, Text> {
+    ensureForumIndexBuilt();
+    var found = false;
+    var authorized = false;
+    var updatedThread : ?ForumThread = null;
+    forumThreadEntries := Array.map<ForumThread, ForumThread>(forumThreadEntries, func(thread) {
+      if (thread.id != threadId) return thread;
+      found := true;
+      if (not (Principal.equal(thread.author, msg.caller) or isAdmin(msg.caller) or isModerator(msg.caller))) {
+        return thread;
+      };
+      authorized := true;
+      let updated : ForumThread = {
+        id = thread.id;
+        section = thread.section;
+        title = thread.title;
+        body = thread.body;
+        image = thread.image;
+        author = thread.author;
+        authorName = thread.authorName;
+        createdAt = thread.createdAt;
+        replies = thread.replies;
+        deleted = true;
+      };
+      updatedThread := ?updated;
+      updated
+    });
+    if (not found) return #err("Thread not found");
+    if (not authorized) return #err("Not authorized to delete this thread");
+    switch (updatedThread) { case (?t) { threadsById.put(t.id, t) }; case null {} };
+    #ok("Thread deleted")
+  };
+
+  /// Real reply deletion — same previously-fake local-only bug as thread deletion above. Replies
+  /// have no `deleted` flag of their own (adding one would require a stable-type shape change,
+  /// risking a memory-incompatible upgrade), so this hard-removes the reply and any of its own
+  /// nested child replies from the thread's replies array instead.
+  public shared(msg) func adminDeleteForumReply(threadId : Text, replyId : Text) : async Result.Result<Text, Text> {
+    ensureForumIndexBuilt();
+    var found = false;
+    var authorized = false;
+    var replyFound = false;
+    var updatedThread : ?ForumThread = null;
+    forumThreadEntries := Array.map<ForumThread, ForumThread>(forumThreadEntries, func(thread) {
+      if (thread.id != threadId) return thread;
+      found := true;
+      var targetAuthor : ?Principal = null;
+      for (r in thread.replies.vals()) {
+        if (r.id == replyId) { targetAuthor := ?r.author; replyFound := true };
+      };
+      switch (targetAuthor) {
+        case null { return thread };
+        case (?author) {
+          if (not (Principal.equal(author, msg.caller) or isAdmin(msg.caller) or isModerator(msg.caller))) {
+            return thread;
+          };
+        };
+      };
+      authorized := true;
+      let remainingReplies = Array.filter<ForumReply>(thread.replies, func(r) {
+        r.id != replyId and r.parentReplyId != ?replyId
+      });
+      let updated : ForumThread = {
+        id = thread.id;
+        section = thread.section;
+        title = thread.title;
+        body = thread.body;
+        image = thread.image;
+        author = thread.author;
+        authorName = thread.authorName;
+        createdAt = thread.createdAt;
+        replies = remainingReplies;
+        deleted = thread.deleted;
+      };
+      updatedThread := ?updated;
+      updated
+    });
+    if (not found) return #err("Thread not found");
+    if (not replyFound) return #err("Reply not found");
+    if (not authorized) return #err("Not authorized to delete this reply");
+    switch (updatedThread) { case (?t) { threadsById.put(t.id, t) }; case null {} };
+    #ok("Reply deleted")
   };
 
   public query func getGamerBadges(owner : Principal) : async [GamerBadge] {
