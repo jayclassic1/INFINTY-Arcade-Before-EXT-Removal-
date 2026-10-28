@@ -140,7 +140,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 @keyframes mobileGlow{0%,100%{box-shadow:0 0 20px rgba(0,170,255,.1),inset 0 0 20px rgba(0,170,255,.03)}50%{box-shadow:0 0 30px rgba(0,170,255,.2),inset 0 0 30px rgba(0,170,255,.05)}}
 @keyframes mobilePulse{0%,100%{opacity:.6}50%{opacity:1}}
 @keyframes scanline{0%{top:-2px}100%{top:100%}}
-.mobile-shell{width:min(100%,400px);padding:clamp(10px,4vw,20px);box-sizing:border-box;max-width:100vw;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;overflow-x:hidden}
+.mobile-shell{width:100%;padding:0;box-sizing:border-box;max-width:100vw;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;overflow-x:hidden}
 .mob-card{background:rgba(0,15,30,.8);border:1px solid rgba(0,170,255,.15);border-radius:16px;padding:clamp(14px,4vw,20px);width:100%;box-sizing:border-box;margin-bottom:14px;min-width:0;max-width:100%;backdrop-filter:blur(8px);animation:mobileGlow 4s ease-in-out infinite}
 .mob-card:hover{border-color:rgba(0,170,255,.3)}
 .mob-label{font-size:.65rem;color:#2d5a8a;margin-bottom:5px;letter-spacing:2px;text-transform:uppercase;font-weight:700}
@@ -154,75 +154,163 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 </style>
 <div class='mobile-shell'>
 
-<!-- Scanline effect -->
-<div style='position:fixed;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,170,255,.15),transparent);z-index:1;pointer-events:none;animation:scanline 6s linear infinite'></div>
-
-<!-- Logo -->
-<div style='margin-top:30px;margin-bottom:24px;position:relative'>
-<div style='font-size:2.2rem;letter-spacing:8px;font-weight:900;background:linear-gradient(90deg,#ff0000,#ff8800,#ffff00,#00ff00,#0088ff,#8800ff,#ff0000);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200% 100%;animation:rainbowSlide 3s linear infinite;filter:drop-shadow(0 0 15px rgba(255,255,255,.2))'>INFINITY</div>
-<div style='font-size:1.4rem;letter-spacing:12px;font-weight:900;color:#e0e6f0;margin-top:-4px;text-shadow:0 0 20px rgba(0,170,255,.3)'>ARCADE</div>
-<div style='width:60px;height:2px;background:linear-gradient(90deg,transparent,var(--cyan,#00aaff),transparent);margin:8px auto 0'></div>
+<style id='mobGamesStyle'>
+#mobileOverlay{background:radial-gradient(120% 60% at 50% -10%,#16213f 0%,#06080f 55%) fixed,#06080f!important}
+#mxRoot{--n0:#06080f;--n1:#0d1222;--n2:#151d33;--rail:#232d4a;--gold:#ffd24a;--gold2:#e9a91c;--cyan:#38c6f4;--tx:#ecf1ff;--dim:#8391b5;
+  width:100%;max-width:440px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;text-align:left;color:var(--tx);font-family:Inter,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+#mxRoot button{font-family:inherit}
+#mxRoot :focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.mx-top{position:sticky;top:0;z-index:5;padding:12px 16px 10px;background:linear-gradient(#06080fee 70%,#06080f00);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.mx-bar{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.mx-logo{display:flex;align-items:baseline;gap:6px;font-weight:900;line-height:1;white-space:nowrap}
+.mx-logo b{font-size:1rem;letter-spacing:.1em;background:linear-gradient(90deg,#ff3b3b,#ff9d00,#ffe600,#2bff6a,#2aa8ff,#9b4dff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.mx-logo span{font-size:.6rem;letter-spacing:.22em;color:#c9d3ef}
+.mx-wallet{display:flex;align-items:center;gap:6px}
+.mx-chip{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 9px;border-radius:999px;background:var(--n1);border:1px solid var(--rail);font-size:.76rem;white-space:nowrap;font-weight:800;font-variant-numeric:tabular-nums}
+.mx-coin{width:13px;height:13px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3b0,var(--gold) 50%,var(--gold2));box-shadow:0 0 6px #ffd24a66;flex:none}
+.mx-plus{height:30px;padding:0 13px;border-radius:999px;border:none;background:linear-gradient(#ffe28a,var(--gold) 55%,var(--gold2));color:#251700;font-size:.74rem;font-weight:900;letter-spacing:.1em;line-height:1;box-shadow:0 2px 0 #8a5a00;cursor:pointer;display:none;align-items:center;justify-content:center}
+.mx-signin{height:32px;padding:0 14px;border-radius:999px;border:1px solid var(--cyan);background:#38c6f414;color:var(--cyan);font-weight:800;font-size:.78rem;cursor:pointer}
+.mx-seg{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;padding:4px;border-radius:14px;background:var(--n1);border:1px solid var(--rail)}
+.mx-seg button{height:36px;border:none;border-radius:10px;background:none;color:var(--dim);font-weight:800;font-size:.86rem;cursor:pointer;transition:background .15s,color .15s}
+.mx-seg button.on{background:var(--n2);color:var(--gold);box-shadow:inset 0 0 0 1px #ffd24a40}
+.mx-games{padding:6px 16px 8px}
+.mx-feat{display:block;width:100%;padding:0;margin:0 0 14px;border:none;background:none;color:inherit;text-align:left;cursor:pointer}
+.mx-feat-frame{position:relative;border-radius:18px;padding:12px 10px 10px;background:linear-gradient(#1a1406,#0d1222 45%);border:1px solid #ffd24a59;box-shadow:0 0 0 1px #000 inset,0 12px 40px -18px #ffd24a66}
+.mx-feat-frame::before{content:'';position:absolute;left:18px;right:18px;top:4px;height:4px;border-radius:2px;background:radial-gradient(circle,#ffe9a0 0 1.4px,transparent 1.8px) 0 50%/9px 4px repeat-x;opacity:.9}
+.mx-feat-art{aspect-ratio:680/600;border-radius:11px;background:#0a0f1d center/contain no-repeat;display:grid;place-items:center;font-size:2.6rem}
+.mx-feat-row{display:flex;align-items:center;gap:12px;padding:12px 4px 2px}
+.mx-feat-txt{flex:1;min-width:0}
+.mx-feat-name{font-size:1.15rem;font-weight:900;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mx-play{flex:none;height:44px;padding:0 20px;border-radius:12px;background:linear-gradient(#ffe28a,var(--gold) 55%,var(--gold2));color:#251700;font-weight:900;font-size:.9rem;letter-spacing:.12em;box-shadow:0 4px 0 #8a5a00;display:grid;place-items:center}
+.mx-feat:active .mx-play{transform:translateY(3px);box-shadow:0 1px 0 #8a5a00}
+.mx-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.mx-card{display:block;padding:0;border:1px solid var(--rail);border-radius:14px;overflow:hidden;background:var(--n1);color:inherit;text-align:left;cursor:pointer;min-width:0}
+.mx-card:active{transform:scale(.98)}
+.mx-art{aspect-ratio:680/600;background:#0a0f1d center/contain no-repeat;display:grid;place-items:center;font-size:1.8rem}
+.mx-name{padding:9px 10px 2px;font-size:.82rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mx-tag{padding:0 10px 10px;font-size:.68rem;color:var(--dim)}
+.mx-feat .mx-tag{padding:3px 0 0;font-size:.75rem}
+.mx-tag.t{color:var(--gold)}
+.mx-empty{grid-column:1/-1;padding:34px 14px;text-align:center;border:1px dashed var(--rail);border-radius:16px;color:var(--dim);font-size:.82rem;line-height:1.55}
+.mx-empty b{display:block;color:var(--tx);font-size:.95rem;margin-bottom:4px}
+.mx-sec{margin:22px 16px 0;padding:18px 16px;border-radius:18px;background:var(--n1);border:1px solid var(--rail)}
+.mx-sec h2{margin:0 0 12px;font-size:1rem;font-weight:900;letter-spacing:.02em}
+.mx-bal{display:flex;align-items:baseline;gap:6px;margin-bottom:6px}
+.mx-bal #mobileIcpBal{font-size:2rem;font-weight:900;font-variant-numeric:tabular-nums;color:var(--tx)}
+.mx-bal span:last-child{font-size:.85rem;font-weight:800;color:var(--dim)}
+.mx-row{border-top:1px solid var(--rail)}
+.mx-row summary{list-style:none;display:flex;align-items:center;justify-content:space-between;padding:14px 2px;font-weight:800;font-size:.9rem;cursor:pointer}
+.mx-row summary::-webkit-details-marker{display:none}
+.mx-row summary::after{content:'';width:8px;height:8px;border-right:2px solid var(--dim);border-bottom:2px solid var(--dim);transform:rotate(45deg);transition:transform .2s;margin-right:4px}
+.mx-row[open] summary::after{transform:rotate(-135deg)}
+.mx-row .mx-in{padding:0 2px 16px}
+.mx-help{font-size:.74rem;color:var(--dim);line-height:1.5;margin:0 0 10px}
+#mxRoot #mobileDepAddr,#mxRoot #mobileNftReceivePrincipal{font-size:.7rem!important;font-family:ui-monospace,Menlo,monospace;color:#cfe3ff!important;background:var(--n0)!important;border:1px solid var(--rail)!important;border-radius:10px!important;padding:12px!important;line-height:1.45}
+#mxRoot .mob-input{background:var(--n0);border:1px solid var(--rail);border-radius:10px;padding:12px;font-size:16px;color:var(--tx)}
+#mxRoot .mob-input:focus{border-color:var(--cyan)}
+.mx-btn{width:100%;height:46px;border-radius:12px;border:1px solid var(--cyan);background:#38c6f41a;color:var(--cyan);font-weight:800;font-size:.9rem;cursor:pointer}
+.mx-btn.gold{border-color:var(--gold);background:#ffd24a14;color:var(--gold)}
+.mx-btn.solid{border:none;background:linear-gradient(#5cd6ff,var(--cyan));color:#00202d}
+.mx-max{flex:none;height:46px;padding:0 14px;border-radius:10px;border:1px solid #ffd24a59;background:#ffd24a12;color:var(--gold);font-weight:800;font-size:.78rem;cursor:pointer}
+#mxRoot #mobileNftGrid{gap:8px!important;margin-top:10px}
+.mx-foot{margin-top:auto;padding:24px 16px 28px;text-align:center}
+.mx-foot p{font-size:.74rem;color:var(--dim);line-height:1.5;margin:0 0 14px}
+.mx-link{border:none;background:none;color:var(--gold);font-weight:800;font-size:.86rem;cursor:pointer;padding:8px}
+.mx-cid{margin-top:10px;font-size:.6rem;color:#3b4a70;letter-spacing:.06em}
+@media (prefers-reduced-motion:reduce){#mxRoot *{transition:none!important}}
+.mx-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mx-card{border-radius:12px}
+.mx-name{padding:7px 8px 1px;font-size:.72rem}
+.mx-tag{padding:0 8px 8px;font-size:.6rem}
+.mx-walletbar{margin-top:10px;width:100%;display:flex;align-items:center;gap:10px;height:46px;padding:0 14px;border-radius:14px;border:1px solid #38c6f455;background:linear-gradient(90deg,#0f1a2e,#0d1222);color:var(--tx);cursor:pointer;text-align:left}
+.mx-walletbar .mx-wico{width:22px;height:16px;border-radius:4px;border:2px solid var(--cyan);position:relative;flex:none}
+.mx-walletbar .mx-wico::after{content:'';position:absolute;right:-2px;top:3px;width:7px;height:6px;border-radius:2px;background:var(--cyan)}
+.mx-walletbar b{font-size:.92rem;font-weight:900;flex:1}
+.mx-walletbar span{font-size:.82rem;font-weight:800;color:var(--cyan);font-variant-numeric:tabular-nums}
+.mx-walletbar span::after{content:'';display:inline-block;width:7px;height:7px;margin-left:8px;border-right:2px solid var(--dim);border-top:2px solid var(--dim);transform:rotate(45deg);vertical-align:1px}
+#mxWalletSheet{position:fixed;inset:0;z-index:30;background:#06080f;overflow-y:auto;display:none;-webkit-overflow-scrolling:touch}
+#mxWalletSheet.open{display:block}
+.mx-sheet-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:#06080fee;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--rail)}
+.mx-sheet-head h2{margin:0;font-size:1.15rem;font-weight:900}
+.mx-close{height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--rail);background:var(--n1);color:var(--tx);font-weight:800;font-size:.8rem;cursor:pointer}
+#mxWalletSheet .mx-sec{margin:16px 16px 28px}
+.mx-funds{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
+.mx-funds .mx-buy2{margin-left:auto;height:34px;padding:0 16px;border-radius:999px;border:none;background:linear-gradient(#ffe28a,var(--gold) 55%,var(--gold2));color:#251700;font-weight:900;font-size:.74rem;letter-spacing:.1em;box-shadow:0 2px 0 #8a5a00;cursor:pointer}
+.mx-warn{font-size:.72rem;color:#ff8a8a;margin:0 0 10px}
+body.ia-mobile.mx-sheet-open #mobileOverlay{overflow:hidden}
+body.ia-mobile #m-backroom-game{padding:0!important;align-items:stretch!important;justify-content:stretch!important;background:#000!important}
+body.ia-mobile #m-backroom-game>.panel{width:100vw!important;max-width:none!important;height:100vh!important;height:100dvh!important;max-height:none!important;border-radius:0!important;border:none!important;padding:4px 6px!important;box-sizing:border-box!important}
+#mobRotateNote{display:none}
+@media (orientation:portrait){
+  body.ia-mobile #m-backroom-game #mobRotateNote{display:flex;position:absolute;inset:0;z-index:50;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#04060c;color:#e8eefc;text-align:center;padding:24px;box-sizing:border-box}
+}
+#mobRotateNote .mr-phone{width:46px;height:78px;border:3px solid #ffd76a;border-radius:10px;position:relative;animation:mobRotate 2.2s ease-in-out infinite}
+#mobRotateNote .mr-phone::after{content:'';position:absolute;bottom:6px;left:50%;width:10px;height:3px;margin-left:-5px;border-radius:2px;background:#ffd76a}
+@keyframes mobRotate{0%,20%{transform:rotate(0)}50%,80%{transform:rotate(-90deg)}100%{transform:rotate(0)}}
+#mobRotateNote .mr-t{font-size:1.05rem;font-weight:900;letter-spacing:2px;color:#ffd76a}
+#mobRotateNote .mr-s{font-size:.78rem;color:#9fb6d8;line-height:1.5;max-width:260px}
+#mobRotateNote .mr-x{margin-top:6px;padding:9px 18px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#e8eefc;font-size:.75rem;cursor:pointer}
+</style>
+<div id="mxRoot">
+<header class='mx-top'>
+<div class='mx-bar'>
+<div class='mx-logo' aria-label='Infinity Arcade'><b>INFINITY</b><span>ARCADE</span></div>
+<div class='mx-wallet'><span id='mobGamesBal' style='display:flex;gap:6px'></span><button class='mx-plus' id='mobBuyTokens' aria-label='Buy Tokens' title='Buy Tokens' onclick='window.buyQuartersPrompt&&window.buyQuartersPrompt()'>BUY</button><button class='mx-signin' id='mobSignIn' onclick='showConnect()'>Sign in</button></div>
 </div>
+<button type='button' class='mx-walletbar' id='mxWalletBar' onclick='window.mobileWalletOpen&&window.mobileWalletOpen()'><i class='mx-wico'></i><b>Wallet</b><span id='mxWalletAmt'>Sign in</span></button>
+<div class='mx-seg' role='tablist'><button role='tab' class='on' id='mobTabShowroom' onclick='window.mobileGamesTab&&window.mobileGamesTab("showroom")'>Showroom</button><button role='tab' id='mobTabBack' onclick='window.mobileGamesTab&&window.mobileGamesTab("back")'>The Back</button></div>
+</header>
 
-<!-- Desktop Notice -->
-<div class='mob-card'>
-<div style='font-size:1.1rem;font-weight:800;color:#22c55e;margin-bottom:4px;letter-spacing:1px'>Play on Desktop</div>
+<main class='mx-games' id="mobGamesCard">
+<div id='mobGamesFeat'></div>
+<div class='mx-grid' id='mobGamesGrid'><div class='mx-empty'>Loading games…</div></div>
+</main>
 
-<div style='font-size:.7rem;color:#2d5a8a;margin-top:8px;line-height:1.5'>User account access still functional on mobile. Deposit, withdraw ICP, and manage your NFTs below.</div>
-</div>
-
-<!-- Mobile User Account -->
-<div class='mob-card'>
-<div class='mobile-shrink-row' style='display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;width:100%'>
-<span style='font-size:.9rem;font-weight:800;color:#e0e6f0;letter-spacing:2px'>WALLET</span>
-<span style='font-size:.6rem;color:#1a3a5c;border:1px solid #1a3a5c;padding:2px 8px;border-radius:4px'>ICP</span>
-</div>
+<div id="mxWalletSheet" role="dialog" aria-modal="true" aria-label="Wallet">
+<div class='mx-sheet-head'><h2>Wallet</h2><button type='button' class='mx-close' onclick='window.mobileWalletClose&&window.mobileWalletClose()'>Close</button></div>
+<section class='mx-sec'>
 <div id='mobileWalletContent'>
-<button id='mobileConnectBtn' onclick='showConnect()' class='mob-btn' style='background:linear-gradient(135deg,rgba(0,170,255,.1),rgba(192,132,252,.1));border:2px solid rgba(0,170,255,.3);color:var(--cyan,#00aaff)'>Connect / Create</button>
+<p class='mx-help'>Sign in to buy Tokens, play, and manage your ICP and NFTs.</p>
+<button id='mobileConnectBtn' onclick='showConnect()' class='mx-btn solid'>Sign in or create account</button>
 </div>
 <div id='mobileWalletConnected' style='display:none'>
-<div style='background:rgba(0,0,0,.3);border-radius:12px;padding:14px;margin-bottom:12px'>
-<div style='font-size:.65rem;color:#2d5a8a;letter-spacing:1px;margin-bottom:4px'>BALANCE</div>
-<div class='mobile-shrink-row' style='display:flex;align-items:baseline;gap:6px;justify-content:center'>
-<span id='mobileIcpBal' style='font-size:1.8rem;font-weight:900;background:linear-gradient(90deg,#ffd700,#ff8800);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text'>0.00</span>
-<span style='font-size:.8rem;color:#4a6080;font-weight:700'>ICP</span>
-</div>
-</div>
-
-<div style='margin-bottom:12px'>
-<div class='mob-label'>DEPOSIT ADDRESS</div>
+<div class='mx-bal'><span id='mobileIcpBal'>0.0000</span><span>ICP</span></div>
+<p class='mx-help'>Your arcade deposit in ICP.</p>
+<div class='mx-funds'><span class='mx-chip' title='Tokens'><i class='mx-coin'></i><span id='mxSheetTokens'>0</span>&nbsp;Tokens</span><span class='mx-chip' title='Tickets'>🎟️ <span id='mxSheetTickets'>0</span>&nbsp;Tickets</span><button type='button' class='mx-buy2' onclick='window.buyQuartersPrompt&&window.buyQuartersPrompt()'>BUY TOKENS</button></div>
+<details class='mx-row'><summary>Deposit ICP</summary><div class='mx-in'>
+<p class='mx-help'>Send ICP to this address. Tap it to copy.</p>
 <div id='mobileDepAddr' style='font-size:.55rem;color:#8ab4d8;background:rgba(0,0,0,.4);padding:10px;border-radius:8px;word-break:break-all;cursor:pointer;border:1px solid transparent;transition:all .3s' onclick='navigator.clipboard.writeText(this.textContent);this.style.borderColor="var(--cyan,#00aaff)";this.textContent="Copied!";let t=this.dataset.addr;setTimeout(()=>{this.textContent=t;this.style.borderColor="transparent"},1200)' title='Tap to copy'></div>
+</div></details>
+<details class='mx-row'><summary>Deposit NFTs</summary><div class='mx-in'>
+<p class='mx-help'>Send NFTs to this principal ID. Tap it to copy.</p>
+<p class='mx-warn'>Don't send ICP here. Use Deposit ICP for ICP.</p>
+<div id='mobileNftReceivePrincipal' title='NFT receive principal' style='word-break:break-all;cursor:pointer' onclick='copyPrincipal()'>Sign in to see your NFT receive principal</div>
+<button id='mobileCopyNftPrincipal' onclick='copyPrincipal()' class='mx-btn' style='margin-top:8px;height:40px;font-size:.8rem'>Copy principal</button>
+<button type='button' class='mx-btn' style='margin-top:8px;height:40px;font-size:.8rem;border-color:#22d3ee;color:#22d3ee' onclick='window.openSupportedCollectionsModal&&window.openSupportedCollectionsModal()'>Supported collections</button>
+</div></details>
+<details class='mx-row'><summary>Withdraw ICP</summary><div class='mx-in'>
+<div style='display:flex;gap:8px;margin-bottom:8px'>
+<input id='mobileWdAmt' type='number' min='0' step='0.0001' inputmode='decimal' placeholder='Amount' class='mob-input' style='flex:1;min-width:0'/>
+<button class='mx-max' onclick='var b=Math.max(0,(Number(S.icpBalanceE8s||0)/1e8)-0.0001);document.getElementById("mobileWdAmt").value=b.toFixed(4)'>Max</button>
+</div>
+<input id='mobileWdAddr' type='text' placeholder='Destination address' class='mob-input' style='width:100%;box-sizing:border-box;margin-bottom:10px'/>
+<button onclick='mobileWithdraw()' class='mx-btn'>Withdraw</button>
+<div id='mobileWdRes' style='font-size:.78rem;margin-top:8px;color:var(--dim)'></div>
+</div></details>
+<details class='mx-row'><summary>My NFTs</summary><div class='mx-in'>
+<div id='mobileNftGrid' style='display:grid;grid-template-columns:repeat(3,1fr);gap:8px'></div>
+<button onclick='mobileScanWalletNfts(this)' class='mx-btn gold' style='margin-top:10px'>Scan my NFTs</button>
+</div></details>
+</div>
+</section>
 </div>
 
-<div style='margin-bottom:12px'>
-<div class='mob-label'>WITHDRAW</div>
-<div class='mobile-shrink-row' style='display:flex;gap:6px;margin-bottom:6px'>
-<input id='mobileWdAmt' type='number' min='0' step='0.0001' placeholder='Amount' class='mob-input' style='flex:1'/>
-<button onclick='var b=Math.max(0,(Number(S.icpBalanceE8s||0)/1e8)-0.0001);document.getElementById("mobileWdAmt").value=b.toFixed(4)' style='padding:8px 12px;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.25);border-radius:8px;color:var(--gold,#ffd700);font-weight:700;font-size:.7rem;cursor:pointer;white-space:nowrap'>MAX</button>
+<footer class='mx-foot'>
+<p>Forums, the DAO and the Prize Booth are on desktop.</p>
+<button class='mx-link' onclick='openMobileManifesto()'>Read the manifesto</button>
+<div class='mx-cid'>mprew-viaaa-aaaah-quola-cai.icp0.io</div>
+</footer>
 </div>
-<input id='mobileWdAddr' type='text' placeholder='Destination address' class='mob-input' style='margin-bottom:8px'/>
-<button onclick='mobileWithdraw()' class='mob-btn' style='background:linear-gradient(135deg,rgba(0,170,255,.08),rgba(0,170,255,.15));border:2px solid rgba(0,170,255,.3);color:var(--cyan,#00aaff)'>Withdraw</button>
-<div id='mobileWdRes' style='font-size:.75rem;margin-top:6px;color:#4a6080'></div>
-</div>
-
-<div>
-<div class='mob-label'>YOUR NFTs</div>
-<div style='background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.22);border-radius:10px;padding:10px;margin-bottom:10px'>
-<div class='mob-label' style='color:#c084fc;margin-bottom:5px'>NFT RECEIVE PRINCIPAL</div>
-<div id='mobileNftReceivePrincipal' title='NFT receive principal for supported NFT transfers' style='font-size:.55rem;color:#d8c9ff;background:rgba(0,0,0,.35);padding:9px;border-radius:7px;word-break:break-all;border:1px solid rgba(139,92,246,.18);cursor:pointer' onclick='copyPrincipal()'>Connect wallet to see your NFT receive principal</div>
-<button id='mobileCopyNftPrincipal' onclick='copyPrincipal()' class='mob-btn' style='margin-top:7px;background:none;border:1px solid rgba(139,92,246,.35);color:#c084fc;font-size:.7rem;padding:8px'>Copy NFT Receive Principal</button>
-<div style='font-size:.58rem;color:#5d4b89;line-height:1.35;margin-top:6px'>For supported NFT receives, use this wallet Principal ID. It is different from the ICP payment address above.</div>
-</div>
-<div id='mobileNftGrid' style='display:grid;grid-template-columns:repeat(3,1fr);gap:6px'></div>
-<button onclick='mobileScanWalletNfts(this)' class='mob-btn' style='margin-top:8px;background:linear-gradient(135deg,#00aaff,#6d5dfc);border:1px solid rgba(255,255,255,.26);color:#ffffff;font-size:.75rem;font-weight:800;padding:10px;box-shadow:0 0 14px rgba(0,170,255,.42),0 0 18px rgba(139,92,246,.22) inset;opacity:1'>Scan NFTs</button>
-</div>
-</div>
-</div>
-
-<!-- Manifesto Button -->
-<button onclick='openMobileManifesto()' class='mob-btn' style='background:linear-gradient(135deg,rgba(255,215,0,.06),rgba(255,136,0,.06));border:2px solid rgba(255,215,0,.25);color:var(--gold,#ffd700);margin-bottom:14px;width:100%'>Read the Manifesto</button>
-
-<div style='font-size:.6rem;color:#0f2a45;margin-top:auto;padding:16px 0;letter-spacing:3px'>INFINITY ARCADE · mprew-viaaa-aaaah-quola-cai.icp0.io</div>
 </div>
 </div>
 
@@ -272,6 +360,7 @@ new MutationObserver(mutations=>{
 (function(){
   if(window.innerWidth<=768||/Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent)){
     document.getElementById('mobileOverlay').style.display='block';
+    document.body.classList.add('ia-mobile');
   }
   window.mobileWithdraw=function(){
     const amt=document.getElementById('mobileWdAmt')?.value;
@@ -542,6 +631,7 @@ new MutationObserver(mutations=>{
 <div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#7d6aa8;margin-bottom:4px'>GAME ZIP FILE</div><div style='display:grid;gap:8px'><label style='padding:10px 14px;background:rgba(0,170,255,.08);border:1px solid rgba(0,170,255,.25);border-radius:10px;color:#9dd6ff;font-size:.8rem;font-weight:700;cursor:pointer;text-align:center'>Choose Zip File<input type='file' id='backSubZipFile' accept='.zip' style='display:none' onchange='handleSubmissionZipSelect(this,"back")'/></label><div id='backSubZipInfo' style='font-size:.72rem;color:#8aa6d8'></div><div style='font-size:.68rem;color:#5a7a9a;line-height:1.5'>Must contain index.html at the root (or one folder deep). Max 10MB total, 2MB per file.</div></div></div>
 <div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#7d6aa8;margin-bottom:4px'>THUMBNAIL IMAGE</div><div style='display:grid;gap:8px'><div style='display:flex;gap:8px;align-items:stretch;flex-wrap:wrap'><label style='flex:1 1 160px;display:flex;align-items:center;justify-content:center;padding:10px 14px;background:rgba(204,68,255,.08);border:1px solid rgba(204,68,255,.25);border-radius:10px;color:#d8b4fe;font-size:.8rem;font-weight:700;cursor:pointer;text-align:center'>Upload from Computer<input type='file' id='backSubThumbFile' accept='image/*' style='display:none' onchange='handleSubmissionThumbUpload(this,"backSubThumb")'/></label><div class='thumb-size-hint' style='flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.28);border:1px dashed rgba(204,68,255,.35);font-size:.66rem;line-height:1.45;color:#b8c2d8;text-align:left'><b style='color:#fff;font-size:.74rem;letter-spacing:.5px'>680 × 600 px</b><span>JPG, PNG or WebP · max 2MB</span><span style='opacity:.75'>Keep the subject centred</span></div></div><input type='hidden' id='backSubThumb'/><div id='backSubThumbPreview' style='display:none;padding:8px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;text-align:center'></div></div></div>
 <div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#7d6aa8;margin-bottom:4px'>DESCRIPTION</div><textarea class='wallet-input' id='backSubDesc' rows='3' placeholder='What is your game about?' style='font-size:.85rem;font-family:inherit;resize:vertical'></textarea></div>
+<div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#7d6aa8;margin-bottom:6px'>PLATFORM</div><div style='display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px'><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='backSubCompat' value='desktop' checked style='margin-right:6px'/>Desktop</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='backSubCompat' value='mobile' style='margin-right:6px'/>Mobile</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='backSubCompat' value='both' style='margin-right:6px'/>Desktop + Mobile</label></div></div>
 <div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#7d6aa8;margin-bottom:6px'>GAME CATEGORY</div><div style='display:grid;gap:6px'><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='backSubGameCategory' value='ai-made' style='margin-right:6px'/>AI Made</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='backSubGameCategory' value='independent' checked style='margin-right:6px'/>Independent</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='backSubGameCategory' value='studio' style='margin-right:6px'/>Studio</label></div></div>
 <div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#7d6aa8;margin-bottom:6px'>GAME DETAILS (OPTIONAL)</div><div style='display:grid;grid-template-columns:1fr 1fr;gap:6px'><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='backSubKeyboardOnly'/>Keyboard Only</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='backSubKeyboardMouse'/>Keyboard and Mouse</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='backSubControllerReady'/>Controller Ready</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='backSubMadeWithAi'/>Made with AI</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='backSubLocalMp'/>Local Multiplayer</label></div></div>
 <div style='padding:10px 12px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.25);border-radius:10px'><label style='display:flex;align-items:flex-start;gap:10px;cursor:pointer'><input type='checkbox' id='backSubHopeful' style='margin-top:3px;accent-color:#a855f7'/><span style='font-size:.8rem;color:#d8b4fe;line-height:1.5'><b style='color:#c084fc'>Showroom Hopeful</b><br><span style='color:#a78bca;font-size:.72rem'>Mark this so players know the creator wants it considered for Showroom.</span></span></label></div>
@@ -570,7 +660,7 @@ new MutationObserver(mutations=>{
 <div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#5a7baa;margin-bottom:4px'>THUMBNAIL IMAGE</div><div style='display:grid;gap:8px'><div style='display:flex;gap:8px;align-items:stretch;flex-wrap:wrap'><label style='flex:1 1 160px;display:flex;align-items:center;justify-content:center;padding:10px 14px;background:rgba(0,170,255,.08);border:1px solid rgba(0,170,255,.25);border-radius:10px;color:#8fdcff;font-size:.8rem;font-weight:700;cursor:pointer;text-align:center'>Upload from Computer<input type='file' id='showSubThumbFile' accept='image/*' style='display:none' onchange='handleSubmissionThumbUpload(this,"showSubThumb")'/></label><div class='thumb-size-hint' style='flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;padding:6px 10px;border-radius:10px;background:rgba(0,0,0,.28);border:1px dashed rgba(0,170,255,.35);font-size:.66rem;line-height:1.45;color:#b8c2d8;text-align:left'><b style='color:#fff;font-size:.74rem;letter-spacing:.5px'>680 × 600 px</b><span>JPG, PNG or WebP · max 2MB</span><span style='opacity:.75'>Keep the subject centred</span></div></div><input type='hidden' id='showSubThumb'/><div id='showSubThumbPreview' style='display:none;padding:8px;background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);border-radius:10px;text-align:center'></div></div></div>
 <div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#5a7baa;margin-bottom:4px'>DESCRIPTION</div><textarea class='wallet-input' id='showSubDesc' rows='3' placeholder='Describe the game, core loop, and why it belongs in Showroom.' style='font-size:.85rem;font-family:inherit;resize:vertical'></textarea></div>
 <div style='display:grid;grid-template-columns:1fr 1fr;gap:12px'>
-<div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#5a7baa;margin-bottom:6px'>PLATFORM</div><div style='display:grid;gap:6px'><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='showSubCompat' value='desktop' checked style='margin-right:6px'/>Desktop</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='showSubCompat' value='mobile' style='margin-right:6px'/>Mobile</label></div></div>
+<div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#5a7baa;margin-bottom:6px'>PLATFORM</div><div style='display:grid;gap:6px'><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='showSubCompat' value='desktop' checked style='margin-right:6px'/>Desktop</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='showSubCompat' value='mobile' style='margin-right:6px'/>Mobile</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='showSubCompat' value='both' style='margin-right:6px'/>Desktop + Mobile</label></div></div>
 <div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#5a7baa;margin-bottom:6px'>GAME CATEGORY</div><div style='display:grid;gap:6px'><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='showSubGameCategory' value='independent' checked style='margin-right:6px'/>Independent</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.8rem'><input type='radio' name='showSubGameCategory' value='studio' style='margin-right:6px'/>Studio</label></div></div>
 <div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#5a7baa;margin-bottom:6px'>GAME DETAILS (OPTIONAL)</div><div style='display:grid;grid-template-columns:1fr 1fr;gap:6px'><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='showSubKeyboardOnly'/>Keyboard Only</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='showSubKeyboardMouse'/>Keyboard and Mouse</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='showSubControllerReady'/>Controller Ready</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='showSubMadeWithAi'/>Made with AI</label><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='showSubLocalMp'/>Local Multiplayer</label></div></div>
 <div><div class='label' style='font-size:.7rem;letter-spacing:1px;color:#5a7baa;margin-bottom:6px'>MONETIZATION</div><div style='display:grid;grid-template-columns:1fr 1fr;gap:6px'><label style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,215,0,.25);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='showSubPaysTickets' onchange='updateShowSubMonetizationUi()'/>🎟️ Ticket Game</label><label id='showSubWantsPurchasableLabel' style='cursor:pointer;padding:8px 12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;display:flex;align-items:center;gap:8px'><input type='checkbox' id='showSubWantsPurchasable' onchange='updateShowSubMonetizationUi()'/>💰 Purchasable (buy outright)</label></div><div id='showSubPurchasePriceRow' style='display:none;margin-top:6px'><input type='number' id='showSubPurchasePrice' min='1' step='1' placeholder='Purchase price (tokens)' style='width:100%;padding:8px 10px;background:rgba(0,0,0,.3);border:1px solid rgba(134,239,172,.3);border-radius:8px;color:#fff;font-size:.78rem;box-sizing:border-box'/></div><div id='showSubPurchasableHint' style='display:none;font-size:.65rem;color:#5a7baa;margin-top:4px'>Ticket games can't be purchasable</div></div>
@@ -1741,6 +1831,7 @@ window.addEventListener('message', (e) => {
 
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>Can I play with friends on the same computer?</button><div class='faq-a'>Yes, in games that support it. Two players can share the keyboard (usually Player 1 on W A S D and Player 2 on the arrow keys), and more players can join with USB or Bluetooth controllers. Use the <b>Connect Controllers</b> button at the bottom of the Showroom, The Back or Blackhole to choose which player each controller is.</div></div>
 
+<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>Can I play on my phone?</button><div class='faq-a'>Yes. Open the arcade on your phone or tablet and the <b>Play</b> section lists every Showroom and The Back game its creator made for phones. Desktop-only games are hidden there, so you never spend a Token on a game you can't control. Your wallet and NFTs work on mobile too; forums, the DAO and the Prize Booth are on desktop.</div></div>
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>Can I use a controller?</button><div class='faq-a'>Yes. Pair any USB or Bluetooth controller (Xbox, PlayStation, Switch Pro and most others), then press a button on it with the arcade open. The <b>Connect Controllers</b> button at the bottom of the Showroom, The Back and Blackhole shows the connection status, lets you choose which player each controller is, and has fixes for common problems. Each game decides what the buttons do, and many let you reassign them from a <b>Controls</b> option on their title screen. Keyboard keys can be changed from the gear icon on your Profile.</div></div>
 
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What's the difference between The Back and the Showroom?</button><div class='faq-a'>The Back is the proving ground: any developer can submit a game there, every game is free to play, players rate games with likes and dislikes, and players can tip creators. The Showroom is the main stage: vetted games that cost 1 Token per run or visit, including ticket games with prize pools. Creators earn from Showroom plays and purchases, and from tips in The Back.</div></div>
@@ -2025,7 +2116,8 @@ window.addEventListener('message', (e) => {
 <div style='font-size:.6rem;color:#5a7baa;letter-spacing:1px;margin-bottom:2px'>PLATFORM</div>
 <select id='uploadGameCompat' style='width:100%;padding:6px 8px;background:rgba(0,0,0,.4);border:1px solid rgba(34,197,94,.2);border-radius:6px;color:#fff;font-size:.7rem;box-sizing:border-box'>
 <option value='desktop'>Desktop</option>
-<option value='both'>Mobile + iPad</option>
+<option value='mobile'>Mobile</option>
+<option value='both'>Desktop + Mobile</option>
 </select>
 </div>
 <div>
@@ -6763,6 +6855,7 @@ function backendIdl({IDL}){
     getGameBackedTicketPool:IDL.Func([IDL.Text],[IDL.Nat],['query']),
     getAllGameRawTicketPools:IDL.Func([],[IDL.Vec(IDL.Record({gameId:IDL.Text,rawTicketPool:IDL.Nat}))],['query']),
     getAllGameBackedTicketPools:IDL.Func([],[IDL.Vec(IDL.Record({gameId:IDL.Text,backedTicketPool:IDL.Nat}))],['query']),
+    getGameCardStats:IDL.Func([],[IDL.Vec(IDL.Record({gameId:IDL.Text,highScore:IDL.Nat,holder:IDL.Principal,holderName:IDL.Text,holderAvatarUrl:IDL.Text}))],['query']),
     setGameScreenshots:IDL.Func([IDL.Text,IDL.Vec(IDL.Text)],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),
     buyGameBoost:IDL.Func([IDL.Text],[IDL.Variant({ok:IDL.Int,err:IDL.Text})],[]),
     adminBoostGame:IDL.Func([IDL.Text],[IDL.Variant({ok:IDL.Int,err:IDL.Text})],[]),
@@ -6786,6 +6879,7 @@ function backendIdl({IDL}){
     getPlayerLevels:IDL.Func([IDL.Principal],[IDL.Record({gxp:IDL.Nat,gxpLevel:IDL.Nat,gxpPercentile:IDL.Nat,dvp:IDL.Nat,dvpLevel:IDL.Nat,dvpPercentile:IDL.Nat,lifetimeSpent:IDL.Nat,achievements:IDL.Vec(IDL.Text)})],['query']),
     removeGameSubmission:IDL.Func([IDL.Text],[Result],[]),
     adminSuspendGame:IDL.Func([IDL.Text],[Result],[]),
+    adminSetGameCompatibility:IDL.Func([IDL.Text,IDL.Text],[Result],[]),
     adminRelistGame:IDL.Func([IDL.Text],[Result],[]),
     adminDeleteGamePermanently:IDL.Func([IDL.Text],[Result],[]),
     requestGameRemoval:IDL.Func([IDL.Text],[Result],[]),
@@ -7127,20 +7221,37 @@ async function fetchGameStatsForDisplay(gameId,isTicketGame=true,poolMap=null){
 async function hydrateGameCardStats(gameList){
   const games=(gameList||[]).filter(g=>g&&g.id);
   if(!games.length) return;
-  let poolMap=new Map();
+  let poolMap=new Map(), cardMap=null;
   try{
     const be=await getBackendActor(false);
-    if(be?.getAllGameBackedTicketPools){
-      const pools=await be.getAllGameBackedTicketPools();
-      for(const item of pools||[]) poolMap.set(String(item.gameId||''),Number(item.backedTicketPool||0));
-    }
-  }catch(e){console.warn('Game card backed pool batch fetch failed:',e);}
+    const [pools,cards]=await Promise.all([
+      be?.getAllGameBackedTicketPools?be.getAllGameBackedTicketPools().catch(e=>{console.warn('Game card backed pool batch fetch failed:',e);return [];}):Promise.resolve([]),
+      be?.getGameCardStats?be.getGameCardStats().catch(e=>{console.warn('Game card stats batch fetch failed:',e);return null;}):Promise.resolve(null),
+    ]);
+    for(const item of pools||[]) poolMap.set(String(item.gameId||''),Number(item.backedTicketPool||0));
+    if(Array.isArray(cards)){ cardMap=new Map(); for(const c of cards) cardMap.set(String(c.gameId||''),c); }
+  }catch(e){console.warn('Game card batch fetch failed:',e);}
   await Promise.all(games.map(async game=>{
     const els=[...document.querySelectorAll(`[data-game-stats-key="${cssEscapeValue(game.id)}"]`)];
     if(!els.length) return;
     const isTicketGame=game.paysTickets!==false;
     try{
-      const stats=await fetchGameStatsForDisplay(game.id,isTicketGame,poolMap);
+      let stats;
+      if(cardMap){
+        // Batch path: no per-card backend calls. Own profile / cached public profiles still win for avatars.
+        const c=cardMap.get(game.id);
+        let owner=null;
+        if(c){
+          const principal=principalToText(c.holder);
+          const cached=principal?((principal===S.principalText?getProfile():null)||getPublicProfiles()[principal]||getProfileFor(principal)||null):null;
+          owner=principal?(cached&&(cached.name||cached.avatarUrl||cached.avatarNft)
+            ?{principal,name:cached.name||principal.slice(0,12)+'...',...getAvatarProfileSnapshot(cached)}
+            :{principal,name:c.holderName||principal.slice(0,12)+'...',avatarUrl:c.holderAvatarUrl||'',avatarNft:null}):null;
+        }
+        stats={ticketPool:isTicketGame?(poolMap.has(game.id)?poolMap.get(game.id):null):null,highScore:c?Number(c.highScore||0):null,highScoreOwner:owner,poolAvailable:isTicketGame};
+      }else{
+        stats=await fetchGameStatsForDisplay(game.id,isTicketGame,poolMap);
+      }
       for(const el of els) el.innerHTML=renderCompactGameStats(stats,true);
     }catch(e){
       console.warn('Game card stats fetch failed for',game.id,e);
@@ -8673,7 +8784,7 @@ async function redeemNft(tokenId){
 const PLAYS_KEY='arcade_play_stats';
 let _gameSubsCache=null; let _gameSubsCacheTime=0;
 async function getSubmissionsAsync(){
-  if(_gameSubsCache && Date.now()-_gameSubsCacheTime<5000) return _gameSubsCache;
+  if(_gameSubsCache && Date.now()-_gameSubsCacheTime<45000) return _gameSubsCache;
   try{
     const be=await getBackendActor();
     // Monetization/pricing live in separate maps, not on GameSubmission itself (see
@@ -9047,7 +9158,8 @@ async function submitBackGame(){
   qs(resId).innerHTML='<span style="color:var(--cyan)">Submitting game...</span>';
   try{
     const be=await getBackendActor(true);
-    const gameResult=await be.submitGameWithPayment(name,dev||'Anonymous','',desc||'','both');
+    const compat=(document.querySelector('input[name="backSubCompat"]:checked')?.value||'desktop');
+    const gameResult=await be.submitGameWithPayment(name,dev||'Anonymous','',desc||'',compat);
     if(gameResult.err) throw new Error(gameResult.err);
     const gameId=gameResult.ok;
     be.setGameCategory(gameId,category).catch(e=>console.warn('Category save failed:',e));
@@ -9134,6 +9246,120 @@ async function submitShowroomGame(){
     qs(resId).innerHTML='<span style="color:var(--red)">'+escHtml(safeUserErrorMessage(e,'game submission'))+'</span>';
   }
 }
+
+// ===== Mobile games (phones): list phone-ready Showroom / The Back games on the mobile page =====
+const MOB_PLATFORMS=new Set(['mobile','both']);
+let _mobTab='showroom', _mobLastConn=null, _mobRendering=false;
+function mobileReadyGame(s){ return MOB_PLATFORMS.has(String(s&&s.compat||'').toLowerCase()); }
+function mobileGameList(tab){
+  const tierOk=tab==='back'
+    ?(s=>s.tier==='backroom'||s.gameTier==='backroom')
+    :(s=>s.tier==='showroom'||s.gameTier==='showroom'||s.tier==='jays-picks'||s.gameTier==='jays-picks');
+  const stats=(()=>{try{return getPlayStats()||{};}catch(_){return {};}})();
+  return getSubmissions().filter(s=>tierOk(s)&&(s.status||'live')==='live'&&mobileReadyGame(s))
+    .sort((a,b)=>((stats[b.id]?.plays||0)-(stats[a.id]?.plays||0))||String(a.name||'').localeCompare(String(b.name||'')));
+}
+let _mobBalHtml='';
+function mobileUpdateBalances(){
+  const bal=document.getElementById('mobGamesBal'), buy=document.getElementById('mobBuyTokens'), sign=document.getElementById('mobSignIn');
+  const html=S.connected?('<span class="mx-chip" title="Tokens"><i class="mx-coin"></i>'+Math.floor(Number(S.quarters)||0).toLocaleString()+'</span><span class="mx-chip" title="Tickets">🎟️ '+Math.floor(Number(S.tickets)||0).toLocaleString()+'</span>'):'';
+  if(bal&&html!==_mobBalHtml){ bal.innerHTML=html; _mobBalHtml=html; }
+  if(buy) buy.style.display=S.connected?'inline-flex':'none';
+  if(sign) sign.style.display=S.connected?'none':'inline-block';
+  const amt=document.getElementById('mxWalletAmt');
+  if(amt) amt.textContent=S.connected?((Number(S.icpBalanceE8s||0)/1e8).toFixed(4)+' ICP'):'Sign in';
+  const st=document.getElementById('mxSheetTokens'), sk=document.getElementById('mxSheetTickets');
+  if(st) st.textContent=Math.floor(Number(S.quarters)||0).toLocaleString();
+  if(sk) sk.textContent=Math.floor(Number(S.tickets)||0).toLocaleString();
+  const sh=document.getElementById('mxWalletSheet');
+  if(sh&&sh.classList.contains('open')&&!S.connected) mobileWalletClose();
+}
+function mobileWalletOpen(){
+  if(!S.connected) return showConnect();
+  const sh=document.getElementById('mxWalletSheet'); if(!sh) return;
+  try{ window.updateMobileWallet&&window.updateMobileWallet(); }catch(_){}
+  mobileUpdateBalances(); sh.scrollTop=0; sh.classList.add('open'); document.body.classList.add('mx-sheet-open');
+}
+function mobileWalletClose(){
+  const sh=document.getElementById('mxWalletSheet'); if(sh) sh.classList.remove('open'); document.body.classList.remove('mx-sheet-open');
+}
+window.mobileWalletOpen=mobileWalletOpen; window.mobileWalletClose=mobileWalletClose;
+function mobileGameTag(s,full){
+  if(_mobTab==='back') return '<div class="mx-tag">Free to play</div>';
+  return s.paysTickets!==false?('<div class="mx-tag t">🎟️ Win Tickets'+(full?' · 1 Token a run':'')+'</div>'):'<div class="mx-tag">1 Token a play</div>';
+}
+function mobileGameTap(s){ return `window.mobilePlayGame&&window.mobilePlayGame(${JSON.stringify(String(s.id)).replace(/"/g,'&quot;')})`; }
+function mobileArt(s){ return s.thumb?` style="background-image:url('${String(s.thumb).replace(/'/g,'%27').replace(/"/g,'%22')}')"`:''; }
+async function renderMobileGames(){
+  if(!document.body.classList.contains('ia-mobile')) return;
+  const grid=document.getElementById('mobGamesGrid'), feat=document.getElementById('mobGamesFeat'); if(!grid||_mobRendering) return;
+  _mobRendering=true;
+  try{
+    await refreshGameCache();
+    const list=mobileGameList(_mobTab);
+    const ts=document.getElementById('mobTabShowroom'), tb=document.getElementById('mobTabBack');
+    if(ts){ ts.classList.toggle('on',_mobTab==='showroom'); ts.setAttribute('aria-selected',String(_mobTab==='showroom')); }
+    if(tb){ tb.classList.toggle('on',_mobTab==='back'); tb.setAttribute('aria-selected',String(_mobTab==='back')); }
+    const first=null, rest=list;
+    if(feat) feat.innerHTML=first?`<button type="button" class="mx-feat" onclick="${mobileGameTap(first)}"><div class="mx-feat-frame"><div class="mx-feat-art"${mobileArt(first)}>${first.thumb?'':'🎮'}</div><div class="mx-feat-row"><div class="mx-feat-txt"><div class="mx-feat-name">${escHtml(first.name||'Game')}</div>${mobileGameTag(first,true)}</div><div class="mx-play">PLAY</div></div></div></button>`:'';
+    grid.innerHTML=rest.map(s=>`<button type="button" class="mx-card" onclick="${mobileGameTap(s)}"><div class="mx-art"${mobileArt(s)}>${s.thumb?'':'🎮'}</div><div class="mx-name">${escHtml(s.name||'Game')}</div>${mobileGameTag(s)}</button>`).join('')
+      +(list.length?'':`<div class="mx-empty"><b>No phone games ${_mobTab==='back'?'in The Back':'in the Showroom'} yet</b>${_mobTab==='back'?'Try the Showroom, or play the full arcade on a computer.':'Try The Back, or play the full arcade on a computer.'}</div>`);
+  }catch(e){
+    console.warn('Mobile games load failed:',e);
+    if(feat) feat.innerHTML='';
+    grid.innerHTML='<div class="mx-empty"><b>Games did not load</b>Check your connection, then reload the page.</div>';
+  }finally{ _mobRendering=false; mobileUpdateBalances(); }
+}
+function mobileGamesTab(tab){ _mobTab=(tab==='back')?'back':'showroom'; renderMobileGames(); }
+function mobileGoWide(){
+  // Android browsers allow fullscreen + landscape lock on a tap; iPhone ignores this and gets the sideways prompt.
+  try{
+    const el=document.documentElement, rq=el.requestFullscreen||el.webkitRequestFullscreen;
+    const lock=()=>{ try{ screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape').catch(()=>{}); }catch(_){} };
+    if(rq&&!document.fullscreenElement&&!document.webkitFullscreenElement){ const p=rq.call(el); if(p&&p.then) p.then(lock).catch(()=>{}); else lock(); }
+    else lock();
+  }catch(_){}
+}
+function mobileLeaveWide(){
+  try{ screen.orientation&&screen.orientation.unlock&&screen.orientation.unlock(); }catch(_){}
+  try{ if(document.fullscreenElement&&document.exitFullscreen) document.exitFullscreen().catch(()=>{}); }catch(_){}
+}
+function mobileAddRotateNote(){
+  const m=document.getElementById('m-backroom-game'); if(!m||m.querySelector('#mobRotateNote')) return;
+  const n=document.createElement('div'); n.id='mobRotateNote';
+  n.innerHTML='<div class="mr-phone"></div><div class="mr-t">TURN YOUR PHONE SIDEWAYS</div><div class="mr-s">Arcade games play in widescreen. Rotate your phone to keep playing. If it does not turn, switch off rotation lock.</div><button type="button" class="mr-x">Leave game</button>';
+  n.querySelector('.mr-x').onclick=()=>{ const c=m.querySelector('.btn.red'); if(c) c.click(); else { m.remove(); mobileLeaveWide(); } };
+  (m.querySelector('.panel')||m).appendChild(n);
+}
+function mobilePlayGame(id){
+  if(!S.connected) return showConnect();
+  mobileGoWide();
+  Promise.resolve(openBackroomGame(id)).finally(mobileAddRotateNote);
+}
+// release fullscreen / orientation lock once the game window closes
+(function(){
+  if(!document.body||!document.body.classList.contains('ia-mobile')) return;
+  new MutationObserver(ms=>{ for(const m of ms) m.removedNodes&&m.removedNodes.forEach(n=>{ if(n&&n.id==='m-backroom-game'&&!document.getElementById('m-backroom-game')) mobileLeaveWide(); }); })
+    .observe(document.body,{childList:true});
+})();
+window.renderMobileGames=renderMobileGames; window.mobileGamesTab=mobileGamesTab; window.mobilePlayGame=mobilePlayGame;
+// The mobile page sits on top of the desktop site (z-index 9999). Lift anything the game flow opens
+// (game window, Insert Token, alerts, score popups) above it while keeping their order.
+(function(){
+  if(!document.body||!document.body.classList.contains('ia-mobile')) return;
+  const lift=el=>{
+    if(!el||el.nodeType!==1||el.id==='mobileOverlay') return;
+    const cs=getComputedStyle(el); if(cs.position!=='fixed') return;
+    const z=parseInt(cs.zIndex,10)||0; if(z<10000) el.style.zIndex=String(10000+Math.max(0,z));
+  };
+  new MutationObserver(ms=>{ for(const m of ms) m.addedNodes&&m.addedNodes.forEach(lift); }).observe(document.body,{childList:true});
+  setInterval(()=>{
+    if(document.hidden) return;
+    mobileUpdateBalances();
+    if(_mobLastConn!==!!S.connected){ _mobLastConn=!!S.connected; renderMobileGames(); }
+  },2000);
+  setTimeout(renderMobileGames,600);
+})();
 
 async function renderShowroom(){
   await refreshGameCache();
@@ -9721,7 +9947,13 @@ function renderInlineGameAdminTools(gameId){
     </div>
     ${(sub.paysTickets!==false&&gt!=='backroom')?`<div id='payoutAdmin_${payoutDomId(gameId)}'>${renderPayoutConfigAdmin(gameId,null)}</div><div id='jackpotAdmin_${payoutDomId(gameId)}'>${renderTicketJackpotAdmin(gameId,null)}</div>`:''}
     <div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap'>
-      <div style='font-size:.68rem;color:#9fb0d6'>Category</div>
+      <div style='font-size:.68rem;color:#9fb0d6'>Platform</div>
+      <select onchange='adminSetGamePlatformUi("${gameId}",this.value)' style='font-size:.72rem;padding:4px 6px;background:#0a1428;border:1px solid #3456aa;color:#8bb4ff;border-radius:4px;cursor:pointer'>
+        <option value='desktop' ${(sub.compat||'desktop')==='desktop'?'selected':''}>Desktop only</option>
+        <option value='mobile' ${sub.compat==='mobile'?'selected':''}>Mobile only</option>
+        <option value='both' ${sub.compat==='both'?'selected':''}>Desktop + Mobile</option>
+      </select>
+      <div style='font-size:.68rem;color:#9fb0d6;margin-left:6px'>Category</div>
       <select onchange='adminSetGameCategoryUi("${gameId}",this.value)' style='font-size:.72rem;padding:4px 6px;background:#0a1428;border:1px solid #3456aa;color:#8bb4ff;border-radius:4px;cursor:pointer'>
         <option value='' ${!sub.gameCategory?'selected':''}>No Category</option>
         <option value='ai-made' ${sub.gameCategory==='ai-made'?'selected':''}>AI Made</option>
@@ -14770,6 +15002,19 @@ async function adminToggleDaoFavourite(id,on){
     invalidateGameCache(); await refreshGameCache(); renderGameAdminList();
   }catch(e){arcadeAlert('DAO Favourites',escHtml(safeUserErrorMessage(e,'admin action')));}
 }
+async function adminSetGamePlatformUi(gameId,platform){
+  try{
+    const be=await getBackendActor(true);
+    const r=await be.adminSetGameCompatibility(gameId,platform);
+    if(r.err) throw new Error(r.err);
+    invalidateGameCache(); await refreshGameCache();
+    showToast(platform==='desktop'?'Hidden on phones':'Shown on phones');
+  }catch(e){
+    alert('Set platform failed: '+safeUserErrorMessage(e,'set platform'));
+  }
+}
+window.adminSetGamePlatformUi=adminSetGamePlatformUi;
+
 async function adminSetGameCategoryUi(gameId,category){
   try{
     const be=await getBackendActor(true);

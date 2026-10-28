@@ -5383,6 +5383,13 @@ persistent actor ArcadeBackend {
     lotteryTickRunning := true;
     lotteryTickStartedAt := now;
     hydrateRuntimeStateIfNeeded();
+    // Cheap path: lottery off and no cycle in progress -> only settle DAO binding proposals
+    // (which this timer also drives); skip the random-seed await and all lottery cycle work.
+    if (not lotteryEnabled and tokenLotteryCycle == null and ticketLotteryCycle == null) {
+      processBindingProposals();
+      lotteryTickRunning := false;
+      return;
+    };
     var due = false;
     for (kind in ["token", "ticket"].vals()) {
       switch (lotteryCycleOf(kind)) { case (?c) { if (now >= c.nextDrawAt) { due := true } }; case null {} };
@@ -6294,6 +6301,30 @@ persistent actor ArcadeBackend {
     };
   };
 
+  /// Admin: set which devices a listed game is shown on: "desktop", "mobile" or "both".
+  /// Phones only list games marked "mobile" or "both".
+  public shared(msg) func adminSetGameCompatibility(gameId : Text, compatibility : Text) : async Result.Result<Text, Text> {
+    assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    if (compatibility != "desktop" and compatibility != "mobile" and compatibility != "both") return #err("Platform must be desktop, mobile or both");
+    hydrateRuntimeStateIfNeeded();
+    switch (gameSubmissions.get(gameId)) {
+      case null { return #err("Game not found") };
+      case (?game) {
+        let updated : GameSubmission = {
+          id = game.id; name = game.name; developer = game.developer;
+          url = game.url; thumbnailUrl = game.thumbnailUrl; description = game.description;
+          compatibility = compatibility; creator = game.creator;
+          gameTier = game.gameTier; status = game.status;
+          feePaid = game.feePaid; showroomFeePaid = game.showroomFeePaid;
+          txId = game.txId; createdAt = game.createdAt;
+        };
+        gameSubmissions.put(gameId, updated);
+        #ok("Platform set to " # compatibility);
+      };
+    };
+  };
+
   /// Admin: relist a previously-suspended game back to live, at no cost - the game was already
   /// paid for once, this is purely a visibility toggle back on. Only allowed from "suspended" so
   /// this can't accidentally resurrect a "removed" or already-live game via the wrong button.
@@ -6472,6 +6503,23 @@ persistent actor ArcadeBackend {
     };
     Array.map<(Text, Nat), GameRawTicketPoolSnapshot>(source, func((gameId, rawTicketPool)) {
       { gameId = gameId; rawTicketPool = rawTicketPool };
+    });
+  };
+
+  /// One call for the game lists: every game's high score plus the record holder's public
+  /// name and avatar, so a page with N cards does not make 2N profile/high-score queries.
+  /// Query-only: reads the hydrated maps when available, otherwise the stable arrays.
+  public query func getGameCardStats() : async [{ gameId : Text; highScore : Nat; holder : Principal; holderName : Text; holderAvatarUrl : Text }] {
+    let lb = if (runtimeStateHydrated) { Iter.toArray(leaderboards.entries()) } else { leaderboardEntries };
+    Array.map<(Text, LeaderboardEntry), { gameId : Text; highScore : Nat; holder : Principal; holderName : Text; holderAvatarUrl : Text }>(lb, func((gid, e)) {
+      let prof = getPlayerProfileOpt(e.player);
+      {
+        gameId = gid;
+        highScore = e.score;
+        holder = e.player;
+        holderName = switch (prof) { case (?p) p.name; case null "" };
+        holderAvatarUrl = switch (prof) { case (?p) p.avatarUrl; case null "" };
+      }
     });
   };
 
