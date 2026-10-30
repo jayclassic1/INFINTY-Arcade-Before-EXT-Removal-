@@ -2730,7 +2730,7 @@ persistent actor ArcadeBackend {
 
     let baseTickets : Nat = ticketPayout;
     updatePlayerBest(caller, gameId, score);
-    let newRecord = if (isRetiredBreaker(gameId, caller)) { false } else { updateGameTopScores(gameId, caller, score); recordValidatedHighScore(caller, gameId, score) };
+    let newRecord = if (isRetiredBreaker(gameId, caller)) { false } else { markBrokenGhosts(gameId, caller, score); updateGameTopScores(gameId, caller, score); recordValidatedHighScore(caller, gameId, score) };
     let jackpotConfig = gameTicketJackpotConfigs.get(gameId);
     let remainingBackedAfterBase : Nat = availableBackedPool - baseTickets;
     let remainingDailyAfterBase : Nat = if (dailyEarned + baseTickets >= DAILY_TICKET_CAP) {
@@ -2947,9 +2947,27 @@ persistent actor ArcadeBackend {
     gameTopScoreEntries := if (list.size() == 0) { others } else { Array.append<(Text, [(Principal, Nat, Int)])>(others, [(gameId, list)]) };
   };
 
+  // Entry layout: (gameId, retiredPlayer, brokenBy, retiredScore, retiredAt). brokenBy is "" while the
+  // ghost score stands; once another jackpot-eligible player beats it, brokenBy holds their principal
+  // text and the retired player is a normal player on that game again.
   func isRetiredBreaker(gameId : Text, p : Principal) : Bool {
-    for (b in retiredBreakerEntries.vals()) { if (b.0 == gameId and Principal.equal(b.1, p)) return true };
+    for (b in retiredBreakerEntries.vals()) { if (b.0 == gameId and Principal.equal(b.1, p) and b.2 == "") return true };
     false
+  };
+
+  // Called on every validated score: if this score beats a standing ghost ceiling set by someone
+  // else, and the scorer could win jackpots (DAO member), the ghost is marked broken.
+  func markBrokenGhosts(gameId : Text, scorer : Principal, score : Nat) {
+    var any = false;
+    for (b in retiredBreakerEntries.vals()) {
+      if (b.0 == gameId and b.2 == "" and not Principal.equal(b.1, scorer) and score > b.3) { any := true };
+    };
+    if (not any) return;
+    if (not isJackpotEligible(scorer)) return;
+    let who = Principal.toText(scorer);
+    retiredBreakerEntries := Array.map<(Text, Principal, Text, Nat, Int), (Text, Principal, Text, Nat, Int)>(retiredBreakerEntries, func(b) {
+      if (b.0 == gameId and b.2 == "" and not Principal.equal(b.1, scorer) and score > b.3) { (b.0, b.1, who, b.3, b.4) } else { b }
+    });
   };
 
   func updateGameTopScores(gameId : Text, player : Principal, score : Nat) {
@@ -2980,6 +2998,10 @@ persistent actor ArcadeBackend {
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
     if (not isAdmin(msg.caller)) return #err("Not authorized");
     hydrateRuntimeStateIfNeeded();
+    retireBreakerInternal(gameId, player)
+  };
+
+  func retireBreakerInternal(gameId : Text, player : Principal) : Result.Result<Text, Text> {
     let current = switch (leaderboards.get(gameId)) {
       case null { return #err("This game has no record yet") };
       case (?c) c;
@@ -2995,6 +3017,32 @@ persistent actor ArcadeBackend {
     putGameTopScores(gameId, rest);
     leaderboards.put(gameId, { player = next.0; score = next.1; gameId = gameId; timestamp = next.2 });
     #ok("Retired. Ghost ceiling: " # Nat.toText(current.score) # ". New #1 to beat: " # Nat.toText(next.1) # ".");
+  };
+
+  /// Who would be retired right now (current #1), for the admin confirm dialog.
+  public query func getRetireCandidate(gameId : Text) : async ?{ player : Principal; name : Text; score : Nat; hasRunnerUp : Bool } {
+    let lb = if (runtimeStateHydrated) { leaderboards.get(gameId) } else { findTextValue<LeaderboardEntry>(leaderboardEntries, gameId) };
+    switch (lb) {
+      case null null;
+      case (?cur) {
+        let list = gameTopScores(gameId);
+        let rest = Array.filter<(Principal, Nat, Int)>(list, func(e) { not Principal.equal(e.0, cur.player) and not isRetiredBreaker(gameId, e.0) });
+        let nm = switch (getPlayerProfileOpt(cur.player)) { case (?p) p.name; case null "" };
+        ?{ player = cur.player; name = nm; score = cur.score; hasRunnerUp = rest.size() > 0 }
+      };
+    };
+  };
+
+  /// Retire whoever holds the record right now (same rules as adminRetireBreaker). Calls the shared
+  /// internal routine directly: a self-call would arrive with the canister as msg.caller and fail the admin check.
+  public shared(msg) func adminRetireBreakerCurrent(gameId : Text) : async Result.Result<Text, Text> {
+    assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    hydrateRuntimeStateIfNeeded();
+    switch (leaderboards.get(gameId)) {
+      case null #err("This game has no record yet");
+      case (?cur) retireBreakerInternal(gameId, cur.player);
+    };
   };
 
   public query func getAllBreakers() : async [(Text, Principal, Text, Nat, Int)] {
