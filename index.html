@@ -1595,9 +1595,6 @@ window.addEventListener('message', (e) => {
 <!-- Auto-payout -->
 <div id='autoPayoutPanel' style='background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.2);border-radius:12px;padding:16px;margin-bottom:14px'><div style='font-size:.72rem;color:#9aa4b2'>Loading auto-payout...</div></div>
 
-<div style='background:rgba(255,215,0,.03);border:1px solid rgba(255,215,0,.12);border-radius:10px;padding:12px 14px;margin-bottom:28px;font-size:.72rem;color:#8aa0c8;line-height:1.6'>
-<b style='color:#ffd700'>Tax notice:</b> creators are responsible for their own tax reporting. Infinity Arcade provides no tax advice and does not determine your obligations.
-</div>
 
 <!-- History tabs -->
 <style>
@@ -1664,12 +1661,13 @@ window.addEventListener('message', (e) => {
 </div>
 <div id='principalAcctStatus'></div>
 </div>
-<div style='display:flex;gap:8px;margin-bottom:16px' id='royaltyTabBtns'>
-<button onclick='showRoyaltyTab("gamedev")' id='rtab-gamedev' style='padding:6px 16px;border-radius:8px;font-size:.75rem;font-weight:700;cursor:pointer;background:rgba(244,114,182,.15);border:1px solid #f472b6;color:#f472b6'>Game earnings</button>
-<button onclick='showRoyaltyTab("artist")' id='rtab-artist' style='padding:6px 16px;border-radius:8px;font-size:.75rem;font-weight:700;cursor:pointer;background:rgba(0,0,0,.2);border:1px solid #333;color:#666'>NFT earnings</button>
+<div id='nftSalesSection' style='display:none;background:rgba(192,132,252,.05);border:1px solid rgba(192,132,252,.25);border-radius:16px;padding:18px 20px;margin-bottom:18px'>
+<div style='font-size:.78rem;font-weight:800;color:#c084fc;letter-spacing:3px;margin-bottom:12px'>RECENT NFT SALES</div>
+<div id='nftSalesList' style='display:grid;gap:6px'></div>
 </div>
-
-<div id='royaltyHistoryPanel' style='min-height:200px'></div>
+<div id='earningsTaxNotice' style='background:rgba(255,215,0,.03);border:1px solid rgba(255,215,0,.12);border-radius:10px;padding:12px 14px;margin:6px 0 28px;font-size:.72rem;color:#8aa0c8;line-height:1.6'>
+<b style='color:#ffd700'>Tax notice:</b> creators are responsible for their own tax reporting. Infinity Arcade provides no tax advice and does not determine your obligations.
+</div>
 </div>
 </section>
 
@@ -1945,16 +1943,48 @@ window.addEventListener('message', (e) => {
 
 </section>
 
-<section class='view' id='view-admin' style='padding:0;overflow-y:auto'><div style='max-width:800px;margin:0 auto;padding:10px 14px'>
+<section class='view' id='view-admin' style='padding:0;overflow-y:auto'><div style='max-width:980px;margin:0 auto;padding:10px 14px'>
 <h1 style='text-align:center;color:var(--gold);margin-top:8px'>Admin Panel</h1>
 <p style='text-align:center;color:var(--muted);font-size:.85rem' id='adminAccessMsg'>Connect with admin wallet to access.</p>
 <div id='adminContent' style='display:none'>
 <div style='display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:8px 0 12px'>
-<button id='adminTabTreasury' class='btn tiny' onclick='switchAdminTab("treasury")' style='font-size:.72rem;padding:5px 14px;border-color:var(--gold);color:var(--gold)'>Treasury</button>
-<button id='adminTabUpload' class='btn tiny' onclick='switchAdminTab("upload")' style='font-size:.72rem;padding:5px 14px;border-color:#3456aa;color:#8bb4ff'>Upload Games</button>
-<button id='adminTabNft' class='btn tiny' onclick='switchAdminTab("nft")' style='font-size:.72rem;padding:5px 14px;border-color:#3456aa;color:#8bb4ff'>NFT</button>
-<button id='adminTabOther' class='btn tiny' onclick='switchAdminTab("other")' style='font-size:.72rem;padding:5px 14px;border-color:#3456aa;color:#8bb4ff'>Other</button>
+<button id='adminTabTreasury' class='btn tiny adm-tab' onclick='switchAdminTab("treasury")' style='font-size:.72rem;padding:5px 14px;border-color:var(--gold);color:var(--gold)'>Treasury</button>
+<button id='adminTabUpload' class='btn tiny adm-tab' onclick='switchAdminTab("upload")' style='font-size:.72rem;padding:5px 14px;border-color:#3456aa;color:#8bb4ff'>Games</button>
+<button id='adminTabNft' class='btn tiny adm-tab' onclick='switchAdminTab("nft")' style='font-size:.72rem;padding:5px 14px;border-color:#3456aa;color:#8bb4ff'>NFT</button>
+<button id='adminTabOther' class='btn tiny adm-tab' onclick='switchAdminTab("other")' style='font-size:.72rem;padding:5px 14px;border-color:#3456aa;color:#8bb4ff'>Other</button>
 </div>
+<style id='adm-polish'>
+#adminUploadGameSection,#adminTicketFundingSection,#adminCollectionsSection,#adminExtCollectionsSection,#adminNftsPanel,#adminModeratorsSection,#adminBoostsSection,#adminAntiCheatSection,#adminBanSection,#liveGamesManagementSection{background:linear-gradient(160deg,rgba(26,14,52,.94),rgba(8,10,26,.94))!important;border:1px solid rgba(192,132,252,.22)!important;border-left:4px solid var(--atr-accent,#c084fc)!important;border-radius:16px!important;padding:18px 20px!important;margin:0 0 16px!important;box-shadow:0 0 24px rgba(192,132,252,.07)!important}
+#adminUploadGameSection{--atr-accent:#4ade80}
+#adminTicketFundingSection{--atr-accent:#38bdf8}
+#adminCollectionsSection{--atr-accent:#39ff88}
+#adminExtCollectionsSection{--atr-accent:#22d3ee}
+#adminNftsPanel{--atr-accent:#c084fc}
+#adminModeratorsSection{--atr-accent:#22d3ee}
+#adminBoostsSection{--atr-accent:#fb923c}
+#adminAntiCheatSection{--atr-accent:#ffd700}
+#adminBanSection{--atr-accent:#ef4444}
+#liveGamesManagementSection{--atr-accent:#8bb4ff}
+#adminUploadGameSection>div:first-child,#adminTicketFundingSection>div:first-child,#adminCollectionsSection>div:first-child,#adminExtCollectionsSection>div:first-child,#liveGamesManagementSection>div:first-child,#adminNftsPanel>div:first-child,#adminModeratorsSection>div:first-child>div:first-child,#adminBoostsSection>div:first-child>div:first-child,#adminBanSection>div:first-child>div:first-child,#adminAntiCheatSection>div:first-child>div:first-child{color:#f1e8ff!important;font-size:.82rem!important;letter-spacing:3px!important;font-weight:900!important;text-shadow:0 0 12px var(--atr-accent,#c084fc);text-transform:uppercase}
+#adminUploadGameSection>div:first-child,#adminTicketFundingSection>div:first-child,#adminCollectionsSection>div:first-child,#adminExtCollectionsSection>div:first-child,#liveGamesManagementSection>div:first-child,#adminNftsPanel>div:first-child{margin-bottom:12px!important}
+#adminGamesPanel{gap:14px!important;margin-bottom:16px}
+#adminGamesPanel>div{background:linear-gradient(160deg,rgba(26,14,52,.94),rgba(8,10,26,.94))!important;border:1px solid rgba(192,132,252,.22)!important;border-radius:16px!important;padding:16px 18px!important}
+#adminGamesPanel>div:first-child{border-left:4px solid #38bdf8!important}
+#adminGamesPanel>div:last-child{border-left:4px solid #ffd700!important}
+#adminGamesPanel>div>div:first-child{font-size:.78rem!important;letter-spacing:3px!important;font-weight:900!important;margin-bottom:10px!important}
+#adminCollectionsSection input,#adminExtCollectionsSection input,#adminCollectionsSection textarea,#adminTicketFundingSection input,#adminTicketFundingSection select{background:rgba(0,0,0,.4)!important;border:1px solid rgba(148,163,184,.25)!important;border-radius:9px!important;color:#fff!important;padding:9px 12px!important}
+#adminCollectionsSection input:focus,#adminExtCollectionsSection input:focus,#adminCollectionsSection textarea:focus{border-color:var(--atr-accent)!important;outline:none}
+#adminUploadGameSection input,#adminUploadGameSection select,#adminUploadGameSection textarea{border-radius:9px!important}
+#adminContent .btn{border-radius:9px}
+#colImageZip{color:#94a3b8!important;font-size:.72rem!important}
+#colImageZip::file-selector-button{margin-right:10px;padding:7px 14px;border-radius:9px;border:1px solid #39ff88;background:rgba(57,255,136,.1);color:#39ff88;font-weight:800;cursor:pointer}
+#adminNftsPanel .btn.tiny,#liveGamesManagementSection .btn.tiny{border-radius:999px!important;padding:5px 14px!important;background:rgba(192,132,252,.08)!important;border:1px solid rgba(192,132,252,.35)!important;color:#e9d5ff!important;font-weight:700}
+#adminNftsPanel .btn.tiny:hover,#liveGamesManagementSection .btn.tiny:hover{background:rgba(192,132,252,.2)!important}
+#adminBoostsSection>div:nth-child(2),#boostList{color:#a8a29e!important}
+#modList{color:#94a3b8!important}
+.adm-tab{transition:background .15s,color .15s}
+.adm-tab.on{background:linear-gradient(180deg,#ffd86b,#f5b301)!important;color:#1a1200!important;border-color:#ffd86b!important;font-weight:900;box-shadow:0 0 14px rgba(255,216,107,.4)}
+</style>
 <div id='adminTreasuryOverview' style='display:none'>
 <style>
 #treasuryBalanceBar,#adminTreasuryDepositSection,#adminMiscToolsSection,#adminOperatingWithdrawSection,#adminArcadeSharesSection{background:linear-gradient(160deg,rgba(26,14,52,.94),rgba(8,10,26,.94))!important;border:1px solid rgba(192,132,252,.22)!important;border-left:4px solid var(--atr-accent,#c084fc)!important;border-radius:16px!important;padding:18px 20px!important;margin:0 0 16px!important;box-shadow:0 0 24px rgba(192,132,252,.07)!important;scroll-margin-top:90px}
@@ -1976,41 +2006,68 @@ window.addEventListener('message', (e) => {
 .atr-tile .k{font-size:.62rem;letter-spacing:2px;font-weight:900;color:var(--c)}
 .atr-tile .v{font-size:1.45rem;font-weight:900;color:#fff;margin:6px 0 2px;text-shadow:0 0 14px var(--c)}
 .atr-tile .h{font-size:.64rem;color:#94a3b8}
+.atr-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:760px){.atr-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.atr-tile .v small{font-size:.62rem;letter-spacing:2px;color:var(--c);text-shadow:none;margin-left:4px}
+.atr-tile .v2{font-size:1.05rem;font-weight:900;color:#fff;margin-top:-2px;text-shadow:0 0 12px var(--c)}
+#treasuryBalanceBar{flex-direction:column;align-items:stretch!important;gap:12px!important;padding:16px 18px!important}
+.atr-stats-head{display:flex;align-items:center;gap:10px}
+.atr-stats-head .t{color:#ffd86b;font-weight:900;font-size:.82rem;letter-spacing:3px}
+.atr-stats{display:grid;grid-template-columns:1.25fr 1fr 1fr 1fr;gap:10px}
+@media (max-width:760px){.atr-stats{grid-template-columns:1fr 1fr}}
+.atr-stat{padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)}
+.atr-stat .atr-lbl{font-size:.58rem;letter-spacing:2px;font-weight:900;margin-bottom:8px}
+.atr-stat .atr-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:.66rem;color:#94a3b8;padding:2px 0}
+.atr-stat .atr-row b{font-size:.84rem;color:#fff;font-weight:800}
+.atr-rev{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.atr-rev>div{display:flex;flex-direction:column}
+.atr-rev>div>.btn{margin-top:auto!important;align-self:flex-start}
+.atr-addr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:760px){.atr-addr{grid-template-columns:1fr}}
+.atr-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+@media (max-width:760px){.atr-chips{grid-template-columns:1fr}}
+.atr-chip{padding:12px 14px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)}
+.atr-chip .atr-lbl{font-size:.58rem;letter-spacing:2px;color:#94a3b8;font-weight:800}
+.atr-chip .v{font-size:1.15rem;font-weight:900;color:#fff;margin-top:4px}
+.atr-chip .h{font-size:.6rem;color:#64748b;margin-top:2px}
+.atr-details{border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.02);padding:10px 14px;margin-bottom:6px}
+.atr-details summary{cursor:pointer;font-size:.66rem;letter-spacing:2px;font-weight:800;color:#cbd5e1}
 </style>
 <div class='atr-nav'>
+<button onclick="atrJump('treasuryBalanceBar')">📊 Stats</button>
 <button onclick="atrJump('adminTreasuryDepositSection')">💸 Revenue</button>
 <button onclick="atrJump('adminOperatingWithdrawSection')">🏦 Operating</button>
 <button onclick="atrJump('adminArcadeSharesSection')">🎯 Shares</button>
-<button onclick="atrJump('treasuryBalanceBar')">📊 Stats</button>
-<button onclick="atrJump('adminMiscToolsSection')">🛠️ Tools</button>
 <button onclick="renderAdminTreasuryOverview();loadTreasuryInfo();loadArcadeShareInfo()" style="margin-left:auto">↻ Refresh all</button>
 </div>
 <div id='atrTiles' class='atr-tiles'><div style='color:#94a3b8;font-size:.75rem'>Loading overview…</div></div>
 </div>
 <div id='treasuryBalanceBar' style='background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid var(--gold);border-radius:10px;padding:12px 16px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px'>
-<div style='display:flex;align-items:center;gap:8px;align-self:flex-start;padding-top:8px'><span style='font-size:1.2rem'>💰</span><span style='color:var(--gold);font-weight:bold;font-size:.95rem'>Treasury</span><button id='treasuryScanBtn' onclick='runTreasuryScan()' title='Scan treasury balances' style='padding:5px 9px;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.45);border-radius:8px;color:var(--gold);font-weight:800;font-size:.68rem;cursor:pointer;box-shadow:0 0 10px rgba(255,215,0,.12);transition:transform .18s ease,box-shadow .18s ease'>Scan</button></div>
-<div style='display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap'>
-<div style='display:grid;gap:4px;min-width:190px;padding:8px 10px;border:1px solid rgba(251,191,36,.22);border-radius:10px;background:rgba(251,191,36,.05)'>
-  <span style='color:#fbbf24;font-size:.68rem;font-weight:800;letter-spacing:1px'>Protected / Backing Treasury</span>
-  <span style='color:var(--muted);font-size:.62rem'>Total Protected: <b id='treasuryProtectedTotal' style='color:#fff'>--</b></span>
-  <span style='color:var(--muted);font-size:.62rem'>Required Backing: <b id='treasuryProtected' style='color:#86efac'>--</b></span>
-  <span style='color:var(--muted);font-size:.62rem'>Protected Surplus: <b id='treasuryIcp' style='color:#22c55e'>--</b></span>
+<div class='atr-stats-head'><span style='font-size:1.1rem'>💰</span><span class='t'>TREASURY STATS</span><button id='treasuryScanBtn' onclick='runTreasuryScan()' title='Scan treasury balances' style='padding:5px 9px;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.45);border-radius:8px;color:var(--gold);font-weight:800;font-size:.68rem;cursor:pointer;box-shadow:0 0 10px rgba(255,215,0,.12);transition:transform .18s ease,box-shadow .18s ease'>Scan</button></div>
+<div class='atr-stats'>
+<div class='atr-stat' style='border-color:rgba(251,191,36,.3);background:rgba(251,191,36,.05)'>
+<div class='atr-lbl' style='color:#fbbf24'>PROTECTED / BACKING</div>
+<div class='atr-row'>Total <b id='treasuryProtectedTotal'>--</b></div>
+<div class='atr-row'>Required <b id='treasuryProtected' style='color:#fde68a'>--</b></div>
+<div class='atr-row'>Surplus <b id='treasuryIcp' style='color:#4ade80'>--</b></div>
 </div>
-<div style='display:grid;gap:4px;min-width:190px;padding:8px 10px;border:1px solid rgba(34,197,94,.22);border-radius:10px;background:rgba(34,197,94,.05)'>
-  <span style='color:#22c55e;font-size:.68rem;font-weight:800;letter-spacing:1px'>Operating Treasury</span>
-  <span style='color:var(--muted);font-size:.62rem'>Total Operating: <b id='treasuryOperating' style='color:#fff'>--</b></span>
-  <span style='color:var(--muted);font-size:.62rem'>Max Withdrawal: <b id='treasuryOperatingMax' style='color:#86efac'>--</b></span>
+<div class='atr-stat' style='border-color:rgba(34,197,94,.3);background:rgba(34,197,94,.05)'>
+<div class='atr-lbl' style='color:#4ade80'>OPERATING</div>
+<div class='atr-row'>Total <b id='treasuryOperating'>--</b></div>
+<div class='atr-row'>Max out <b id='treasuryOperatingMax' style='color:#86efac'>--</b></div>
 </div>
-<div style='display:grid;gap:8px;min-width:70px'>
-  <div><span style='color:var(--muted);font-size:.7rem'>Tokens</span><br><span id='treasuryTokens' style='color:#ffd700;font-weight:bold;font-size:1rem'>--</span></div>
-  <div><span style='color:var(--muted);font-size:.7rem'>Signed Up</span><br><span id='treasuryPlayers' style='color:#fff;font-weight:bold;font-size:1rem'>--</span></div>
+<div class='atr-stat'>
+<div class='atr-lbl' style='color:#ffd700'>ECONOMY</div>
+<div class='atr-row'>Tokens <b id='treasuryTokens' style='color:#ffd700'>--</b></div>
+<div class='atr-row'>Tickets <b id='treasuryTickets' style='color:#88ccff'>--</b></div>
 </div>
-<div style='display:grid;gap:8px;min-width:70px'>
-  <div><span style='color:var(--muted);font-size:.7rem'>Tickets</span><br><span id='treasuryTickets' style='color:#88ccff;font-weight:bold;font-size:1rem'>--</span></div>
-  <div><span style='color:var(--muted);font-size:.7rem'>Active</span><br><span id='treasuryActivePlayers' style='color:var(--green);font-weight:bold;font-size:1rem'>--</span></div>
+<div class='atr-stat'>
+<div class='atr-lbl' style='color:#c4b5fd'>PLAYERS &amp; MARKET</div>
+<div class='atr-row'>Signed up <b id='treasuryPlayers'>--</b></div>
+<div class='atr-row'>Active <b id='treasuryActivePlayers' style='color:#4ade80'>--</b></div>
+<div class='atr-row'>Listings <b id='treasuryListings'>--</b></div>
+<div class='atr-row'>Escrowed <b id='treasuryEscrowed'>--</b></div>
 </div>
-<div><span style='color:var(--muted);font-size:.7rem'>Listings</span><br><span id='treasuryListings' style='color:#fff;font-weight:bold;font-size:1rem'>--</span></div>
-<div><span style='color:var(--muted);font-size:.7rem'>Escrowed</span><br><span id='treasuryEscrowed' style='color:#fff;font-weight:bold;font-size:1rem'>--</span></div>
 </div>
 </div>
 <div id='adminTreasuryDepositSection' style='background:rgba(0,170,255,.05);border:1px solid rgba(0,170,255,.2);border-radius:10px;padding:12px 16px;margin-bottom:12px'>
@@ -2018,6 +2075,16 @@ window.addEventListener('message', (e) => {
 <div id='treasuryDepositTargets' style='display:grid;gap:8px;font-size:.7rem;color:#88ccff'>Click refresh to load live deposit wiring</div>
 </div>
 
+<div id='adminPauseSection' style='display:none;background:linear-gradient(160deg,rgba(60,8,16,.94),rgba(12,6,16,.96));border:1px solid rgba(239,68,68,.35);border-left:4px solid #ef4444;border-radius:16px;padding:18px 20px;margin:0 0 16px;box-shadow:0 0 24px rgba(239,68,68,.12)'>
+<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap'>
+<div style='color:#fecaca;font-size:.82rem;letter-spacing:3px;font-weight:900;text-shadow:0 0 12px #ef4444'>🚨 EMERGENCY PAUSE</div>
+<div id='pauseStatusPill' style='padding:4px 12px;border-radius:999px;font-size:.66rem;font-weight:900;letter-spacing:2px;border:1px solid #475569;color:#94a3b8'>…</div>
+</div>
+<div style='font-size:.68rem;color:#cbd5e1;margin:8px 0 12px;line-height:1.5'>Freezes every ICP outflow: claims, deposit withdrawals, auto-payout and all treasury / pot / share withdrawals. Payments into the arcade keep working and nobody's balance changes. Players see a banner while it's on.</div>
+<div id='pauseReasonRow'><input type='text' id='pauseReason' maxlength='200' placeholder='Reason shown to players (optional), e.g. Investigating a payout issue' style='width:100%;box-sizing:border-box;padding:9px 12px;background:rgba(0,0,0,.4);border:1px solid rgba(239,68,68,.3);border-radius:9px;color:#fff;font-size:.74rem;margin-bottom:10px'/></div>
+<button id='pauseToggleBtn' onclick='adminTogglePause()' style='width:100%;padding:12px;border-radius:10px;font-weight:900;font-size:.82rem;letter-spacing:2px;cursor:pointer;border:1px solid #ef4444;background:rgba(239,68,68,.2);color:#fff'>PAUSE ALL OUTFLOWS</button>
+<div id='pauseStatus' style='font-size:.68rem;margin-top:8px'></div>
+</div>
 <div id='adminMiscToolsSection' style='background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.2);border-radius:10px;padding:12px;margin-bottom:12px'>
 <div style='font-size:.75rem;font-weight:800;color:var(--gold);letter-spacing:2px;margin-bottom:8px'>ADMIN TOOLS</div>
 <div style='display:flex;gap:6px;flex-wrap:wrap'>
@@ -2033,8 +2100,8 @@ window.addEventListener('message', (e) => {
 
 <div id='adminOperatingWithdrawSection' style='background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.2);border-radius:10px;padding:12px;margin-bottom:12px'>
 <div style='font-size:.75rem;font-weight:800;color:var(--gold);letter-spacing:2px;margin-bottom:8px'>OPERATING TREASURY WITHDRAWAL</div>
-<div style='font-size:.65rem;color:var(--muted);margin-bottom:8px'>Operating Treasury withdrawal is admin-only, draws only from the Operating Treasury subaccount, and is separate from Protected / Backing Treasury surplus controls.</div>
-<div id='treasuryInfo' style='font-size:.7rem;color:var(--cyan);margin-bottom:8px'>Click refresh to load treasury status</div>
+<div style='font-size:.65rem;color:var(--muted);margin-bottom:10px'>Draws only from the Operating Treasury. Protected / Backing funds are never touched here.</div>
+<div id='treasuryInfo' style='font-size:.7rem;color:var(--cyan);margin-bottom:4px'>Click refresh to load treasury status</div>
 <div id='treasuryDestinationInfo' style='display:grid;gap:6px;margin-bottom:10px'></div>
 <div id='treasuryLaneInfo' style='display:grid;gap:6px;margin-bottom:10px'></div>
 <div style='display:grid;gap:6px'>
@@ -2279,7 +2346,7 @@ window.addEventListener('message', (e) => {
 <div style='font-size:.6rem;color:#5a3d20;margin-bottom:6px'>Admin boosts are free and work exactly like creator boosts: 7 days per boost (stacking), live Showroom games only, and they count toward the Spotlight slot limit.</div>
 <div id='boostList' style='font-size:.75rem;color:#5a3d20'>No boosted games</div>
 </div>
-<div style='background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.18);border-radius:12px;padding:14px;margin-bottom:16px'><div style='display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap'><div style='font-size:.8rem;font-weight:700;color:#ffd700'>Anti-cheat review</div><button class='btn' onclick='openFlaggedScores()' style='font-size:.72rem;padding:5px 12px;border-color:#ffd700;color:#ffd700'>Flagged Scores</button></div><div style='font-size:.68rem;color:#9aa4b2;margin-top:6px'>Impossible scores (paid 0) and large jackpots held for your approval.</div></div>
+<div id='adminAntiCheatSection' style='display:none;background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.18);border-radius:12px;padding:14px;margin-bottom:16px'><div style='display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap'><div style='font-size:.8rem;font-weight:700;color:#ffd700'>Anti-cheat review</div><button class='btn' onclick='openFlaggedScores()' style='font-size:.72rem;padding:5px 12px;border-color:#ffd700;color:#ffd700'>Flagged Scores</button></div><div style='font-size:.68rem;color:#9aa4b2;margin-top:6px'>Impossible scores (paid 0) and large jackpots held for your approval.</div></div>
 <div id='adminBanSection' style='background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.15);border-radius:12px;padding:14px;margin-bottom:16px'>
 <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px'>
 <div style='font-size:.85rem;font-weight:700;color:#dc2626'>Ban Management</div>
@@ -2301,7 +2368,7 @@ window.addEventListener('message', (e) => {
 
 
 <div id='liveGamesManagementSection' style='margin-bottom:16px'>
-<div style='font-size:.78rem;font-weight:800;color:#8bb4ff;letter-spacing:1px;margin-bottom:8px'>🎮 LIVE GAMES MANAGEMENT</div>
+<div style='font-size:.78rem;font-weight:800;color:#8bb4ff;letter-spacing:1px;margin-bottom:8px'>LIVE GAMES MANAGEMENT</div>
 <div style='display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap'>
 <button class='btn tiny' onclick='filterAdminGames("all")' style='font-size:.7rem;padding:3px 8px'>All</button>
 <button class='btn tiny' onclick='filterAdminGames("showroom-ticket")' style='font-size:.7rem;padding:3px 8px'>🎟️ Showroom Ticket</button>
@@ -2311,6 +2378,7 @@ window.addEventListener('message', (e) => {
 <div id='gameAdminList' class='tiny'>No games submitted yet.</div>
 </div>
 <div id='adminNftsPanel'>
+<div>Listed NFTs</div>
 <div style='display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap'>
 <button class='btn tiny' onclick='filterAdminNfts("all")' style='font-size:.7rem;padding:3px 8px'>All</button>
 <button class='btn tiny' onclick='filterAdminNfts("open")' style='font-size:.7rem;padding:3px 8px'>Open Floor</button>
@@ -6948,6 +7016,8 @@ function backendIdl({IDL}){
     getNftSellerEarnings:IDL.Func([IDL.Principal],[IDL.Nat],['query']),
     getClaimableEarningsBreakdown:IDL.Func([IDL.Principal],[IDL.Record({gameCreatorEarningsE8s:IDL.Nat,nftSellerEarningsE8s:IDL.Nat,refundE8s:IDL.Nat,totalClaimableE8s:IDL.Nat})],['query']),
     claimRoyalties:IDL.Func([],[IDL.Variant({ok:IDL.Nat,err:IDL.Text})],[]),
+    adminSetPayoutsPaused:IDL.Func([IDL.Bool,IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),
+    getPayoutsPaused:IDL.Func([],[IDL.Record({paused:IDL.Bool,reason:IDL.Text,since:IDL.Int})],['query']),
     claimCreatorEarningsOnly:IDL.Func([],[IDL.Variant({ok:IDL.Nat,err:IDL.Text})],[]),
     claimNftSellerEarningsOnly:IDL.Func([],[IDL.Variant({ok:IDL.Nat,err:IDL.Text})],[]),
     sendTokens:IDL.Func([IDL.Principal,IDL.Nat],[IDL.Variant({ok:IDL.Nat,err:IDL.Text})],[]),getMyTokenTransfers:IDL.Func([],[IDL.Record({sentLast24h:IDL.Nat,dailyLimit:IDL.Nat,history:IDL.Vec(IDL.Tuple(IDL.Principal,IDL.Principal,IDL.Nat,IDL.Int))})],['query']),adminGetTokenTransfers:IDL.Func([IDL.Nat],[IDL.Vec(IDL.Tuple(IDL.Principal,IDL.Principal,IDL.Nat,IDL.Int))],['query']),tipCreatorWithTokens:IDL.Func([IDL.Text,IDL.Nat],[Result],[]),
@@ -8973,8 +9043,11 @@ function safeAssetCanisterErrorMessage(e,action){
   }
   return raw&&!looksLikeRawBackendDump(raw)?raw.slice(0,180):`${label} failed. Check the browser console for details.`;
 }
+const PAUSED_USER_MSG='Withdrawals and claims are blocked by the admin at this time. Your balance is safe and unchanged \u2014 please try again later.';
+function isPausedError(raw){ return /temporarily paused by the arcade/i.test(String(raw||'')); }
 function safeUserErrorMessage(e,context){
   const raw=getSafeErrorText(e).trim();
+  if(isPausedError(raw)) return PAUSED_USER_MSG;
   const label=String(context||'action').toLowerCase();
   if(!raw) return 'Something went wrong. Please try again.';
   if(/payment|deposit|withdraw|transfer|mint|redeem|claim|purchase|token|ticket|score|session|ledger|game/i.test(label)){
@@ -8995,6 +9068,7 @@ function isSessionAlreadyOpenError(e){
 }
 function safeGamePaymentErrorMessage(e,context){
   const raw=getSafeErrorText(e).trim();
+  if(isPausedError(raw)) return PAUSED_USER_MSG;
   if(_banActive()||/assertion failed/i.test(raw)) return 'Your account is suspended. Only withdrawals, earnings claims and NFT listing are available.';
   const label=String(context||'payment').toLowerCase();
   const normalized=raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
@@ -10468,36 +10542,89 @@ function principalAcctReadAmount(statusEl){
   if(e8s+PRINCIPAL_ACCT_FEE_E8S>_principalAcctBalE8s){ statusEl.innerHTML='<span style="color:#ef4444">Amount plus the 0.0001 ICP fee exceeds your balance.</span>'; return null; }
   return {str,e8s};
 }
+// --- Principal Wallet transfer safety -------------------------------------------------------
+let _pwBusy=false;
+const _pwPending=new Map(); // key -> {t: created_at_time nanos, at: ms}; kept only while an outcome is unknown
+const PW_REUSE_MS=10*60*1000;
+function pwSetBusy(on){
+  _pwBusy=on;
+  document.querySelectorAll('#principalAccountCard .pw-send,#principalAccountCard .pw-move,#principalAccountCard .pw-max').forEach(b=>{b.disabled=on;b.style.opacity=on?'.5':'';b.style.cursor=on?'wait':'';});
+}
+function pwStamp(key){
+  const p=_pwPending.get(key);
+  if(p&&Date.now()-p.at<PW_REUSE_MS) return p.t;
+  const t=BigInt(Date.now())*1000000n;
+  _pwPending.set(key,{t,at:Date.now()});
+  return t;
+}
+// send(stamp) performs one ledger call and returns its raw result. Returns {ok:true,block,dup} or {ok:false,err}.
+// Throws only when the outcome is unknown; the stamp is then kept so a retry cannot pay twice.
+async function pwTransfer(key,send){
+  let r=await send(pwStamp(key));
+  let ek=r&&r.Err?Object.keys(r.Err)[0]:null;
+  if(ek==='CreatedInFuture'||ek==='TxCreatedInFuture'){
+    // browser clock ahead of the ledger: use the ledger's own time (or 5 min ago) for this key
+    const t=(ek==='CreatedInFuture'&&r.Err.CreatedInFuture.ledger_time)?BigInt(r.Err.CreatedInFuture.ledger_time):BigInt(Date.now()-300000)*1000000n;
+    _pwPending.set(key,{t,at:Date.now()});
+    r=await send(t); ek=r&&r.Err?Object.keys(r.Err)[0]:null;
+  }
+  if(ek==='TooOld'||ek==='TxTooOld'){
+    // browser clock far behind: the ledger refused it outright, so nothing moved; send unstamped once
+    _pwPending.delete(key);
+    r=await send(null); ek=r&&r.Err?Object.keys(r.Err)[0]:null;
+  }
+  _pwPending.delete(key); // definite answer from the ledger
+  if(!ek) return {ok:true,block:String(r.Ok),dup:false};
+  if(ek==='Duplicate') return {ok:true,block:String(r.Err.Duplicate.duplicate_of),dup:true};
+  if(ek==='TxDuplicate') return {ok:true,block:String(r.Err.TxDuplicate.duplicate_of),dup:true};
+  return {ok:false,err:'Ledger error: '+ek};
+}
+const PW_UNKNOWN='<span style="color:#fbbf24">Couldn’t confirm the transfer (connection issue). Check your balance before trying again — pressing again with the same destination and amount within 10 minutes is safe and will not send twice.</span>';
+
 async function principalAcctSend(){
+  if(_pwBusy) return;
   const st=document.getElementById('principalAcctStatus'); if(!st) return;
   const amt=principalAcctReadAmount(st); if(!amt) return;
   const dest=(document.getElementById('principalAcctDest')?.value||'').trim();
   const isAcctId=/^[0-9a-fA-F]{64}$/.test(dest); let owner=null;
   if(!isAcctId){ try{ owner=Principal.fromText(dest); }catch(_){ st.innerHTML='<span style="color:#ef4444">Enter a 64-character account ID or a valid principal.</span>'; return; } }
-  if(!await arcadeConfirm('Send ICP from Principal Wallet','<b>To ('+(isAcctId?'account ID':'principal')+'):</b><br><code style="word-break:break-all;color:#88ccff;font-size:.75rem">'+escHtml(dest)+'</code><br><br><b>Amount:</b> '+escHtml(amt.str)+' ICP<br><b>Fee:</b> 0.0001 ICP, paid by you.')) return;
-  st.innerHTML='<span style="color:var(--cyan)">Sending…</span>';
+  pwSetBusy(true);
   try{
-    const led=await principalLedgerActor(); let r;
-    if(isAcctId) r=await led.transfer({to:Array.from(hexToBytes(dest)),fee:{e8s:PRINCIPAL_ACCT_FEE_E8S},memo:0n,from_subaccount:[],created_at_time:[],amount:{e8s:amt.e8s}});
-    else r=await led.icrc1_transfer({to:{owner,subaccount:[]},fee:[PRINCIPAL_ACCT_FEE_E8S],memo:[],from_subaccount:[],created_at_time:[],amount:amt.e8s});
-    if(r.Err) throw new Error('Ledger error: '+Object.keys(r.Err)[0]);
-    st.innerHTML='<span style="color:#22c55e">Sent '+escHtml(amt.str)+' ICP (ledger block '+escHtml(String(r.Ok))+').</span>';
+    if(!await arcadeConfirm('Send ICP from Principal Wallet','<b>To ('+(isAcctId?'account ID':'principal')+'):</b><br><code style="word-break:break-all;color:#88ccff;font-size:.75rem">'+escHtml(dest)+'</code><br><br><b>Amount:</b> '+escHtml(amt.str)+' ICP<br><b>Fee:</b> 0.0001 ICP, paid by you.')) return;
+    st.innerHTML='<span style="color:var(--cyan)">Sending…</span>';
+    const led=await principalLedgerActor();
+    const key='send:'+dest.toLowerCase()+':'+amt.e8s;
+    let res;
+    try{
+      res=await pwTransfer(key,t=>isAcctId
+        ?led.transfer({to:Array.from(hexToBytes(dest)),fee:{e8s:PRINCIPAL_ACCT_FEE_E8S},memo:0n,from_subaccount:[],created_at_time:t===null?[]:[{timestamp_nanos:t}],amount:{e8s:amt.e8s}})
+        :led.icrc1_transfer({to:{owner,subaccount:[]},fee:[PRINCIPAL_ACCT_FEE_E8S],memo:[],from_subaccount:[],created_at_time:t===null?[]:[t],amount:amt.e8s}));
+    }catch(e){ console.warn('principal send outcome unknown',e); st.innerHTML=PW_UNKNOWN; return; }
+    if(res.ok) st.innerHTML='<span style="color:#22c55e">'+(res.dup?'Already sent earlier — nothing was sent twice':'Sent '+escHtml(amt.str)+' ICP')+' (ledger block '+escHtml(res.block)+').</span>';
+    else st.innerHTML='<span style="color:#ef4444">'+escHtml(safeUserErrorMessage(res.err,'principal account send'))+'</span>';
   }catch(e){ st.innerHTML='<span style="color:#ef4444">'+escHtml(safeUserErrorMessage(e,'principal account send'))+'</span>'; }
-  loadPrincipalAccount();
+  finally{ pwSetBusy(false); loadPrincipalAccount(); }
 }
 async function principalAcctToArcade(){
+  if(_pwBusy) return;
   const st=document.getElementById('principalAcctStatus'); if(!st) return;
   const amt=principalAcctReadAmount(st); if(!amt) return;
-  if(!await arcadeConfirm('Move to Arcade Wallet','Move <b>'+escHtml(amt.str)+' ICP</b> from your Principal Account into your arcade wallet?<br><b>Fee:</b> 0.0001 ICP, paid by you.')) return;
-  st.innerHTML='<span style="color:var(--cyan)">Moving…</span>';
+  pwSetBusy(true);
   try{
+    if(!await arcadeConfirm('Move to Arcade Wallet','Move <b>'+escHtml(amt.str)+' ICP</b> from your Principal Wallet into your Arcade Wallet?<br><b>Fee:</b> 0.0001 ICP, paid by you.')) return;
+    st.innerHTML='<span style="color:var(--cyan)">Moving…</span>';
     const led=await principalLedgerActor();
-    const r=await led.icrc1_transfer({to:{owner:Principal.fromText(ARCADE_CANISTER_ID),subaccount:[Array.from(principalToSubaccountBytes(S.principalText))]},fee:[PRINCIPAL_ACCT_FEE_E8S],memo:[],from_subaccount:[],created_at_time:[],amount:amt.e8s});
-    if(r.Err) throw new Error('Ledger error: '+Object.keys(r.Err)[0]);
-    st.innerHTML='<span style="color:#22c55e">Moved '+escHtml(amt.str)+' ICP to your arcade wallet (ledger block '+escHtml(String(r.Ok))+').</span>';
-    try{ await refreshWalletBalance(); }catch(_){}
+    const to={owner:Principal.fromText(ARCADE_CANISTER_ID),subaccount:[Array.from(principalToSubaccountBytes(S.principalText))]};
+    let res;
+    try{
+      res=await pwTransfer('arcade:'+amt.e8s,t=>led.icrc1_transfer({to,fee:[PRINCIPAL_ACCT_FEE_E8S],memo:[],from_subaccount:[],created_at_time:t===null?[]:[t],amount:amt.e8s}));
+    }catch(e){ console.warn('move to arcade outcome unknown',e); st.innerHTML=PW_UNKNOWN; return; }
+    if(res.ok){
+      st.innerHTML='<span style="color:#22c55e">'+(res.dup?'Already moved earlier — nothing was moved twice':'Moved '+escHtml(amt.str)+' ICP to your Arcade Wallet')+' (ledger block '+escHtml(res.block)+').</span>';
+      try{ await refreshWalletBalance(); }catch(_){}
+    } else st.innerHTML='<span style="color:#ef4444">'+escHtml(safeUserErrorMessage(res.err,'move to arcade wallet'))+'</span>';
   }catch(e){ st.innerHTML='<span style="color:#ef4444">'+escHtml(safeUserErrorMessage(e,'move to arcade wallet'))+'</span>'; }
-  loadPrincipalAccount();
+  finally{ pwSetBusy(false); loadPrincipalAccount(); }
 }
 async function renderRoyaltiesDash(){
   if(!S.connected){ return; }
@@ -10532,7 +10659,7 @@ async function renderRoyaltiesDash(){
     console.warn('Unable to load tip earnings data', e);
     const tipEl=document.getElementById('tipEarningsBalance'); if(tipEl) tipEl.textContent = 'Unavailable';
   }
-  showRoyaltyTab(_royaltyTab);
+  loadNftSalesHistory();
   renderAutoPayoutPanel();
 }
 
@@ -10651,6 +10778,25 @@ async function claimCreatorEarnings(){
   }
 }
 
+async function loadNftSalesHistory(){
+  const sec=document.getElementById('nftSalesSection'), list=document.getElementById('nftSalesList');
+  if(!sec||!list||!S.connected) return;
+  try{
+    const be=await getBackendActor();
+    const info=await be.getArtistRoyaltyInfo(S.principal);
+    const rows=[...(info.history||[])].reverse().slice(0,50);
+    if(!rows.length){ sec.style.display='none'; return; }
+    list.innerHTML=rows.map(([source,amt,ts])=>{
+      const date=new Date(Number(ts)/1e6).toLocaleDateString();
+      return `<div style='display:flex;justify-content:space-between;align-items:center;gap:10px;background:rgba(10,20,40,.5);border:1px solid rgba(192,132,252,.15);border-radius:9px;padding:9px 14px'>
+        <span style='flex:1;min-width:0;font-size:.78rem;color:#d8c8f8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'>${escHtml(source||'NFT sale')}</span>
+        <span style='font-size:.72rem;color:#5a7a9a'>${escHtml(date)}</span>
+        <span style='font-weight:800;color:#c084fc;font-size:.8rem'>+${(Number(amt)/1e8).toFixed(4)} ICP</span>
+      </div>`;
+    }).join('');
+    sec.style.display='';
+  }catch(e){ console.warn('NFT sales history unavailable',e); sec.style.display='none'; }
+}
 async function showRoyaltyTab(tab){
   _royaltyTab = tab;
   ['gamedev','artist'].forEach(t=>{
@@ -12969,21 +13115,23 @@ function renderTreasuryDepositTargets(protectedAccountId,operatingAccountId,owne
       </div>
       <button class="btn" onclick="openBlackholeTreasuryWithdraw()" style="margin-top:10px;padding:6px 12px;font-size:.7rem;border-color:#ff77dd;color:#ff77dd">Withdraw</button>
     </div>`:'';
-  return `<div style="display:grid;gap:10px">
+  const revCards=showroomCard+backCard+blackholeCard;
+  return `<div style="display:grid;gap:12px">
+    ${revCards?`<div class="atr-rev">${revCards}</div>`:`<div style="font-size:.7rem;color:#94a3b8">No submission revenue yet.</div>`}
+    <div style="font-size:.6rem;letter-spacing:2px;color:#94a3b8;font-weight:800;margin-top:4px">DEPOSIT ADDRESSES · click to copy</div>
+    <div class="atr-addr" style="font-family:ui-monospace,Menlo,monospace">
     <div style="padding:12px 14px;border:1px solid rgba(34,197,94,.28);border-radius:10px;background:rgba(34,197,94,.08)">
       <div style="font-size:.68rem;color:#86efac;letter-spacing:1px;margin-bottom:6px">OPERATING TREASURY</div>
       ${copyDiv(operatingAccountId)}
-      <div style="font-size:.64rem;color:#86efac;margin-top:6px">Send extra ICP here for clean admin operating funds / withdrawable liquidity.</div>
+      <div style="font-size:.64rem;color:#86efac;margin-top:6px">Withdrawable operating funds.</div>
     </div>
-    ${showroomCard}
-    ${backCard}
-    ${blackholeCard}
     <div style="padding:12px 14px;border:1px solid rgba(251,191,36,.32);border-radius:10px;background:rgba(251,191,36,.08)">
       <div style="font-size:.68rem;color:#fbbf24;letter-spacing:1px;margin-bottom:6px">PROTECTED / BACKING TREASURY</div>
       ${copyDiv(protectedAccountId)}
-      <div style="font-size:.64rem;color:#fde68a;margin-top:6px">Send ICP here when it should back tokens, tickets, creator/seller earnings, refunds, or reserve obligations. This is the account used by the current protected/safe math.</div>
+      <div style="font-size:.64rem;color:#fde68a;margin-top:6px">Backs tokens, tickets, creator/seller earnings and refunds.</div>
     </div>
-    <div style="font-size:.62rem;color:#fbbf24;padding:8px 10px;border:1px solid rgba(251,191,36,.25);border-radius:8px;background:rgba(251,191,36,.06)">Do not send backing funds to Operating Treasury unless you intend them to be treated as withdrawable operating funds.</div>
+    </div>
+    <div style="font-size:.62rem;color:#fbbf24;padding:8px 10px;border:1px solid rgba(251,191,36,.25);border-radius:8px;background:rgba(251,191,36,.06)">⚠️ Backing funds go to Protected / Backing. Anything sent to Operating counts as withdrawable.</div>
     ${ownerPrincipal?`<details style="padding:10px 12px;border:1px solid rgba(148,163,184,.2);border-radius:10px;background:rgba(148,163,184,.05)"><summary style="cursor:pointer;font-size:.68rem;color:#cbd5e1;letter-spacing:1px;font-weight:700">Advanced Reference</summary><div style="font-size:.62rem;color:#8fdcff;letter-spacing:1px;margin-top:10px;margin-bottom:4px">CANISTER PRINCIPAL</div><div style="font-size:.72rem;color:#fff;word-break:break-all">${ownerPrincipal}</div></details>`:''}
   </div>`;
 }
@@ -13100,7 +13248,7 @@ async function renderAdminTreasuryOverview(){
     box.innerHTML=`
       <div class='atr-tile' style='--c:#39ff88' onclick="atrJump('adminTreasuryDepositSection')"><div class='k'>💸 WITHDRAWABLE NOW</div><div class='v'>${icp(withdrawable)} ICP</div><div class='h'>All revenue pots + Operating Treasury</div></div>
       <div class='atr-tile' style='--c:${solv.c}' onclick="atrJump('treasuryBalanceBar')"><div class='k'>🛡️ SOLVENCY</div><div class='v'>${solv.v}</div><div class='h'>${solv.h}</div></div>
-      <div class='atr-tile' style='--c:#22d3ee' onclick="atrJump('treasuryBalanceBar')"><div class='k'>🎟️ PLAYER BALANCES</div><div class='v'>${tok.toLocaleString()} T · ${tix.toLocaleString()} TK</div><div class='h'>Tokens and tickets held by players</div></div>
+      <div class='atr-tile' style='--c:#22d3ee' onclick="atrJump('treasuryBalanceBar')"><div class='k'>🎟️ PLAYER BALANCES</div><div class='v'>${tok.toLocaleString()}<small>TOKENS</small></div><div class='v2'>${tix.toLocaleString()}<small style='font-size:.6rem;letter-spacing:2px;color:#22d3ee;margin-left:4px;text-shadow:none'>TICKETS</small></div><div class='h'>Held by players</div></div>
       <div class='atr-tile' style='--c:#c084fc' onclick="showView('dao-dashboard');loadDaoDashboard()"><div class='k'>🏛️ DAO TREASURY</div><div class='v'>${icp(N(dao))} ICP</div><div class='h'>Funds the lotteries · open DAO Treasury →</div></div>`;
   }catch(e){ box.innerHTML='<div style="color:#ef4444;font-size:.75rem">'+escHtml(safeUserErrorMessage(e,'treasury overview'))+'</div>'; }
 }
@@ -13206,7 +13354,11 @@ async function loadTreasuryInfo(){
     const balIcp=(Number(t.balanceE8s)/1e8).toFixed(4);
     const operatingIcp=operatingE8s===null?'unavailable':(Number(operatingE8s)/1e8).toFixed(4)+' ICP';
     const withdrawableIcp=(Number(t.withdrawableE8s)/1e8).toFixed(4);
-    if(el) el.innerHTML=`<b>Operating Treasury balance:</b> ${operatingIcp} <span style="color:#94a3b8">(separate; not in protected backing math)</span> | <b>Protected / Backing total:</b> ${balIcp} ICP | <b style="color:var(--green)">Safe withdrawable surplus:</b> ${withdrawableIcp} ICP${treasurySafetyBreakdownHtml(t)}`;
+    if(el) el.innerHTML=`<div class="atr-chips">
+      <div class="atr-chip" style="border-color:rgba(34,197,94,.35)"><div class="atr-lbl">OPERATING BALANCE</div><div class="v" style="color:#4ade80">${operatingIcp}</div><div class="h">What this section withdraws</div></div>
+      <div class="atr-chip" style="border-color:rgba(251,191,36,.3)"><div class="atr-lbl">PROTECTED / BACKING</div><div class="v">${balIcp} ICP</div><div class="h">Not withdrawable here</div></div>
+      <div class="atr-chip"><div class="atr-lbl">SAFE SURPLUS</div><div class="v" style="color:#86efac">${withdrawableIcp} ICP</div><div class="h">Backing above what is owed</div></div>
+    </div><details class="atr-details"><summary>BACKING BREAKDOWN</summary>${treasurySafetyBreakdownHtml(t)}</details>`;
     if(destEl) destEl.innerHTML=`<div style="padding:8px 10px;border:1px solid rgba(0,170,255,.22);border-radius:8px;background:rgba(0,170,255,.06)">
       <div style="font-size:.62rem;color:#8fdcff;letter-spacing:1px;margin-bottom:6px">COMMON WITHDRAW DESTINATION</div>
       <div style="display:grid;gap:6px">
@@ -14574,29 +14726,70 @@ async function loadTreasuryStats(){
 }
 const ADMIN_PAGE_SECTIONS={
   treasury:['treasuryBalanceBar','adminTreasuryDepositSection','adminOperatingWithdrawSection','adminArcadeSharesSection'],
-  upload:['adminGamesPanel','adminUploadGameSection','adminTicketFundingSection'],
+  upload:['adminGamesPanel','adminUploadGameSection','adminTicketFundingSection','liveGamesManagementSection'],
   nft:['adminCollectionsSection','adminExtCollectionsSection','adminNftsPanel'],
-  other:['adminMiscToolsSection','adminModeratorsSection','adminBoostsSection','adminBanSection','liveGamesManagementSection']
+  other:['adminPauseSection','adminMiscToolsSection','adminModeratorsSection','adminBoostsSection','adminAntiCheatSection','adminBanSection']
 };
+let _pauseState={paused:false,reason:'',since:0};
+async function refreshPauseBanner(){
+  try{
+    const r=await (await getBackendActor(false)).getPayoutsPaused();
+    _pauseState={paused:!!r.paused,reason:String(r.reason||''),since:Number(r.since||0)};
+  }catch(_){ return; }
+  let b=document.getElementById('arcadePauseBanner');
+  if(!_pauseState.paused){ if(b) b.remove(); return; }
+  if(!b){ b=document.createElement('div'); b.id='arcadePauseBanner';
+    b.style.cssText='position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999;width:max-content;max-width:min(560px,calc(100% - 32px));box-sizing:border-box;padding:12px 22px;border-radius:14px;background:rgba(60,8,16,.96);border:1px solid #ef4444;box-shadow:0 0 24px rgba(239,68,68,.35);color:#fecaca;font-size:.74rem;line-height:1.45;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center';
+    document.body.appendChild(b); }
+  b.innerHTML='<div class="pb-title" style="color:#fff;font-weight:800;font-size:.8rem">Withdrawals and claims are temporarily paused</div>'+
+    '<div>Your balances are safe and unchanged. Games and deposits still work.</div>'+
+    (_pauseState.reason?'<div style="margin-top:4px;padding-top:6px;border-top:1px solid rgba(239,68,68,.3);color:#fca5a5;font-style:italic">'+escHtml(_pauseState.reason)+'</div>':'');
+}
+window.refreshPauseBanner=refreshPauseBanner;
+async function loadPauseAdmin(){
+  if(!isAdmin()) return;
+  await refreshPauseBanner();
+  const p=_pauseState.paused, pill=document.getElementById('pauseStatusPill'), btn=document.getElementById('pauseToggleBtn'), row=document.getElementById('pauseReasonRow'), st=document.getElementById('pauseStatus');
+  if(pill){ pill.textContent=p?'PAUSED':'LIVE'; pill.style.borderColor=p?'#ef4444':'#22c55e'; pill.style.color=p?'#fecaca':'#86efac'; pill.style.background=p?'rgba(239,68,68,.2)':'rgba(34,197,94,.12)'; }
+  if(btn){ btn.textContent=p?'RESUME OUTFLOWS':'PAUSE ALL OUTFLOWS'; btn.style.borderColor=p?'#22c55e':'#ef4444'; btn.style.background=p?'rgba(34,197,94,.2)':'rgba(239,68,68,.2)'; }
+  if(row) row.style.display=p?'none':'';
+  if(st) st.innerHTML=p?'<span style="color:#fca5a5">Paused since '+escHtml(new Date(_pauseState.since/1e6).toLocaleString())+(_pauseState.reason?' — '+escHtml(_pauseState.reason):'')+'</span>':'';
+}
+window.adminTogglePause=async function(){
+  if(!isAdmin()) return;
+  const pausing=!_pauseState.paused;
+  const reason=(document.getElementById('pauseReason')?.value||'').trim();
+  const ok=await arcadeConfirm(pausing?'Pause all outflows?':'Resume outflows?', pausing
+    ?'Claims, deposit withdrawals, auto-payout and every admin withdrawal will be refused until you resume. Balances are not touched.'
+    :'Claims, withdrawals and auto-payout start working again immediately.');
+  if(!ok) return;
+  const btn=document.getElementById('pauseToggleBtn'); if(btn) btn.disabled=true;
+  try{
+    const r=await (await getBackendActor(true)).adminSetPayoutsPaused(pausing,reason);
+    if(r.err!==undefined) arcadeAlert('Pause',escHtml(safeUserErrorMessage(r.err,'admin action')));
+  }catch(e){ arcadeAlert('Pause',escHtml(safeUserErrorMessage(e,'admin action'))); }
+  finally{ if(btn) btn.disabled=false; loadPauseAdmin(); }
+};
+setTimeout(()=>{ refreshPauseBanner(); setInterval(()=>{ if(!document.hidden) refreshPauseBanner(); },300000); },2500);
 function switchAdminTab(tab){
   for(const [pageKey,ids] of Object.entries(ADMIN_PAGE_SECTIONS)){
     const show=pageKey===tab;
     ids.forEach(id=>{
       const el=document.getElementById(id);
       if(!el) return;
-      el.style.display=show?(id==='treasuryBalanceBar'?'flex':'block'):'none';
+      el.style.display=show?(id==='treasuryBalanceBar'?'flex':id==='adminGamesPanel'?'grid':'block'):'none';
     });
   }
   ['Treasury','Upload','Nft','Other'].forEach(label=>{
     const key=label.toLowerCase();
     const btn=document.getElementById('adminTab'+label);
-    if(btn) btn.style.borderColor=tab===key?'var(--gold)':'#3456aa';
+    if(btn){ btn.style.borderColor=tab===key?'var(--gold)':'#3456aa'; btn.classList.toggle('on',tab===key); }
   });
   const _atrOv=document.getElementById('adminTreasuryOverview'); if(_atrOv) _atrOv.style.display=tab==='treasury'?'block':'none';
   if(tab==='treasury'){loadTreasuryInfo();loadArcadeShareInfo();renderAdminTreasuryOverview();}
-  if(tab==='upload'){setUploadGameTier('showroom');refreshAdminPendingSubmissionSelect();refreshAdminGameUpdateSelect();renderPendingSubmissionsByTier();}
+  if(tab==='upload'){setUploadGameTier('showroom');refreshAdminPendingSubmissionSelect();refreshAdminGameUpdateSelect();renderPendingSubmissionsByTier();renderGameAdminList();}
   if(tab==='nft') renderNftAdminList();
-  if(tab==='other') renderGameAdminList();
+  if(tab==='other') loadPauseAdmin();
 }
 
 function parseZipUploadFilename(raw){

@@ -854,6 +854,26 @@ persistent actor ArcadeBackend {
   // Session #3: users/claimants pay every ledger fee on ICP paid out of general custody - the platform
   // never absorbs it. Set explicitly (not fee = null) so a ledger fee change fails loudly with BadFee.
   transient let ICP_LEDGER_FEE_E8S : Nat = 10_000;
+
+  // === EMERGENCY PAUSE ===
+  // Survives upgrades. While true, every function that sends ICP out of the canister refuses at its
+  // first line, before touching any balance. Inflows keep working.
+  stable var payoutsPaused : Bool = false;
+  stable var payoutsPausedReason : Text = "";
+  stable var payoutsPausedAt : Int = 0;
+  transient let PAUSED_MSG : Text = "Withdrawals and claims are temporarily paused by the arcade. Your balance is safe and unchanged.";
+
+  public shared(msg) func adminSetPayoutsPaused(paused : Bool, reason : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    payoutsPaused := paused;
+    payoutsPausedReason := if (paused) { reason } else { "" };
+    payoutsPausedAt := if (paused) { Time.now() } else { 0 };
+    #ok(if (paused) { "Outflows paused" } else { "Outflows resumed" })
+  };
+
+  public query func getPayoutsPaused() : async { paused : Bool; reason : Text; since : Int } {
+    { paused = payoutsPaused; reason = payoutsPausedReason; since = payoutsPausedAt }
+  };
   // Ledger dedup: the ICP ledger rejects a second transfer with the same (from, to, amount, memo,
   // created_at_time) inside its 24h window as #Duplicate. Stamping every transfer makes an
   // accidental retry safe: the money can only move once.
@@ -4453,6 +4473,7 @@ persistent actor ArcadeBackend {
 
   /// Admin-only withdrawal from the dedicated Back Treasury subaccount.
   public shared(msg) func adminWithdrawBackTreasury(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
     if (not isAdmin(msg.caller)) return #err("Admin only");
     if (backTreasuryWithdrawalInFlight) return #err("Back Treasury withdrawal already in progress");
@@ -4909,6 +4930,7 @@ persistent actor ArcadeBackend {
   };
 
   public shared(msg) func adminWithdrawBoostTreasury(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
     if (not isAdmin(msg.caller)) return #err("Admin only");
     if (boostTreasuryWithdrawalInFlight) return #err("Boost Treasury withdrawal already in progress");
@@ -5166,6 +5188,7 @@ persistent actor ArcadeBackend {
 
   /// Admin-only withdrawal from the dedicated Showroom Treasury subaccount.
   public shared(msg) func adminWithdrawShowroomTreasury(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
     if (not isAdmin(msg.caller)) return #err("Admin only");
     if (showroomTreasuryWithdrawalInFlight) return #err("Showroom Treasury withdrawal already in progress");
@@ -5601,6 +5624,7 @@ persistent actor ArcadeBackend {
   /// Admin-only withdrawal from the Showroom ticket-game arcade-share accumulator (from_subaccount=null: this is
   /// a plain internal counter against the canister's general ICP balance, not a dedicated subaccount).
   public shared(msg) func adminWithdrawShowroomTicketArcadeShare(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
     if (not isAdmin(msg.caller)) return #err("Admin only");
     // Session #3: this share pays its own ledger fee (debited with the amount), never general custody.
@@ -5633,6 +5657,7 @@ persistent actor ArcadeBackend {
 
   /// Admin-only withdrawal from the Showroom non-ticket per-play arcade-share accumulator.
   public shared(msg) func adminWithdrawShowroomNonTicketArcadeShare(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
     if (not isAdmin(msg.caller)) return #err("Admin only");
     // Session #3: this share pays its own ledger fee (debited with the amount), never general custody.
@@ -5665,6 +5690,7 @@ persistent actor ArcadeBackend {
 
   /// Admin-only withdrawal from the Showroom full-game-purchase arcade-share accumulator.
   public shared(msg) func adminWithdrawShowroomPurchaseArcadeShare(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
     if (not isAdmin(msg.caller)) return #err("Admin only");
     // Session #3: this share pays its own ledger fee (debited with the amount), never general custody.
@@ -5698,6 +5724,7 @@ persistent actor ArcadeBackend {
 
   /// Admin-only withdrawal from the Prize Booth (NFT + VP badge sales) arcade-share accumulator.
   public shared(msg) func adminWithdrawPrizeBoothArcadeShare(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
     if (not isAdmin(msg.caller)) return #err("Admin only");
     // Session #3: this share pays its own ledger fee (debited with the amount), never general custody.
@@ -6744,6 +6771,7 @@ persistent actor ArcadeBackend {
   /// after which the normal withdraw UI can send ICP to any principal or account ID.
   /// Claim only the creator earnings balance (the combined claimRoyalties button still pays everything).
   public shared(msg) func claimCreatorEarningsOnly() : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     let caller = msg.caller;
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     hydrateRuntimeStateIfNeeded();
@@ -6792,6 +6820,7 @@ persistent actor ArcadeBackend {
 
   /// Claim only the NFT seller earnings balance (the combined claimRoyalties button still pays everything).
   public shared(msg) func claimNftSellerEarningsOnly() : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     let caller = msg.caller;
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     hydrateRuntimeStateIfNeeded();
@@ -6839,6 +6868,7 @@ persistent actor ArcadeBackend {
   };
 
   public shared(msg) func claimRoyalties() : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     let caller = msg.caller;
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     hydrateRuntimeStateIfNeeded();
@@ -7154,6 +7184,7 @@ persistent actor ArcadeBackend {
   };
   // TESTING ONLY (remove before mainnet): activate a pending payout address now and pay this player immediately.
   public shared(msg) func adminTestAutoPayoutNow(p : Principal) : async Result.Result<Text, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     if (not isAdmin(msg.caller)) return #err("Admin only");
     hydrateRuntimeStateIfNeeded();
     var c = autoPayoutOf(p);
@@ -7166,6 +7197,7 @@ persistent actor ArcadeBackend {
   };
   func autoPayoutTick() : async () {
     if (autoPayoutEntries.size() == 0) return; // nobody uses auto-payout: almost free
+    if (payoutsPaused) return; // emergency pause: payouts wait, nothing counts as a failure
     let now = Time.now();
     if (autoPayoutBusySince > 0 and now - autoPayoutBusySince < 1_800_000_000_000) return; // self-healing lock (30 min)
     // One pass: activate address changes older than 48h and collect payouts that are due (bounded).
@@ -7194,6 +7226,7 @@ persistent actor ArcadeBackend {
   };
 
   public shared(msg) func claimTipEarnings() : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     let caller = msg.caller;
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     hydrateRuntimeStateIfNeeded();
@@ -7813,6 +7846,7 @@ persistent actor ArcadeBackend {
   };
 
   func adminWithdrawOperatingTreasuryImpl(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     if (operatingTreasuryWithdrawalInFlight) return #err("Operating Treasury withdrawal already in progress");
     if (amountE8s <= ICP_LEDGER_FEE_E8S) {
       return #err("Operating Treasury withdrawal amount must exceed ledger fee dust: " # Nat.toText(ICP_LEDGER_FEE_E8S) # " e8s");
@@ -7859,6 +7893,7 @@ persistent actor ArcadeBackend {
   };
 
   func adminWithdrawBlackholeTreasuryImpl(destination : Account, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     if (blackholeTreasuryWithdrawalInFlight) return #err("Blackhole Treasury withdrawal already in progress");
     if (amountE8s <= ICP_LEDGER_FEE_E8S) {
       return #err("Blackhole Treasury withdrawal amount must exceed ledger fee dust: " # Nat.toText(ICP_LEDGER_FEE_E8S) # " e8s");
@@ -7916,6 +7951,7 @@ persistent actor ArcadeBackend {
   /// Admin-only withdrawal from the separated Operating Treasury subaccount to a raw ICP ledger account ID.
   /// Amount is the net ICP e8s sent; the operating subaccount must also cover the classic ledger fee.
   public shared(msg) func adminWithdrawOperatingTreasuryToAccountId(toAccountHex : Text, amountE8s : Nat) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
     if (not isAdmin(msg.caller)) return #err("Admin only");
     if (operatingTreasuryWithdrawalInFlight) return #err("Operating Treasury withdrawal already in progress");
@@ -8422,6 +8458,7 @@ persistent actor ArcadeBackend {
   // Withdraw ICP from user's arcade deposit to a principal
   // subaccountHex: the 32-byte subaccount as 64-char hex (passed from frontend to avoid JS/Motoko encoding mismatch)
   public shared(msg) func withdrawDeposit(toPrincipal : Principal, amountE8s : Nat, subaccountHex : Text) : async Result.Result<Nat, Text> {
+    if (payoutsPaused) return #err(PAUSED_MSG);
     let caller = msg.caller;
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     if (amountE8s < 20000) return #err("Minimum withdrawal: 0.0002 ICP");
