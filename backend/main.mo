@@ -854,6 +854,10 @@ persistent actor ArcadeBackend {
   // Session #3: users/claimants pay every ledger fee on ICP paid out of general custody - the platform
   // never absorbs it. Set explicitly (not fee = null) so a ledger fee change fails loudly with BadFee.
   transient let ICP_LEDGER_FEE_E8S : Nat = 10_000;
+  // Ledger dedup: the ICP ledger rejects a second transfer with the same (from, to, amount, memo,
+  // created_at_time) inside its 24h window as #Duplicate. Stamping every transfer makes an
+  // accidental retry safe: the money can only move once.
+  func ledgerNow() : Nat64 { Nat64.fromNat(Int.abs(Time.now())) };
   transient let ICP_TIP_MIN_E8S : Nat = 10_000;
   transient var operatingTreasuryWithdrawalInFlight = false;
   transient var blackholeTreasuryWithdrawalInFlight = false;
@@ -4408,7 +4412,7 @@ persistent actor ArcadeBackend {
         fee = null;
         memo = null;
         from_subaccount = ?fromSub;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = BACK_SUBMISSION_FEE_E8S;
       });
       gameSubmissionInFlight.delete(caller);
@@ -4472,7 +4476,7 @@ persistent actor ArcadeBackend {
         fee = null;
         memo = null;
         from_subaccount = ?BACK_TREASURY_SUBACCOUNT;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = amountE8s;
       });
       backTreasuryWithdrawalInFlight := false;
@@ -4575,7 +4579,7 @@ persistent actor ArcadeBackend {
         fee = ?ICP_LEDGER_FEE_E8S;
         memo = null;
         from_subaccount = ?fromSub;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = price;
       });
       boostPurchaseInFlight.delete(caller);
@@ -4925,7 +4929,7 @@ persistent actor ArcadeBackend {
         fee = ?ICP_LEDGER_FEE_E8S;
         memo = null;
         from_subaccount = ?BOOST_TREASURY_SUBACCOUNT;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = amountE8s;
       });
       boostTreasuryWithdrawalInFlight := false;
@@ -4981,7 +4985,7 @@ persistent actor ArcadeBackend {
         fee = ?ICP_LEDGER_FEE_E8S;
         memo = null;
         from_subaccount = ?fromSub;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = usedE8s;
       });
       ticketFundInFlight.delete(caller);
@@ -5032,7 +5036,7 @@ persistent actor ArcadeBackend {
         fee = ?ICP_LEDGER_FEE_E8S;
         memo = null;
         from_subaccount = ?SHOWROOM_TREASURY_SUBACCOUNT;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = usedE8s;
       });
       switch (result) {
@@ -5121,7 +5125,7 @@ persistent actor ArcadeBackend {
         fee = null;
         memo = null;
         from_subaccount = ?fromSub;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = SHOWROOM_SUBMISSION_FEE_E8S + ICP_LEDGER_FEE_E8S; // + submitter-prepaid fee for the later ticket-pool seed transfer
       });
       gameSubmissionInFlight.delete(caller);
@@ -5185,7 +5189,7 @@ persistent actor ArcadeBackend {
         fee = null;
         memo = null;
         from_subaccount = ?SHOWROOM_TREASURY_SUBACCOUNT;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = amountE8s;
       });
       showroomTreasuryWithdrawalInFlight := false;
@@ -5611,7 +5615,7 @@ persistent actor ArcadeBackend {
         fee = ?ICP_LEDGER_FEE_E8S;
         memo = null;
         from_subaccount = null;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = amountE8s;
       });
       switch (result) {
@@ -5643,7 +5647,7 @@ persistent actor ArcadeBackend {
         fee = ?ICP_LEDGER_FEE_E8S;
         memo = null;
         from_subaccount = null;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = amountE8s;
       });
       switch (result) {
@@ -5675,7 +5679,7 @@ persistent actor ArcadeBackend {
         fee = ?ICP_LEDGER_FEE_E8S;
         memo = null;
         from_subaccount = null;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = amountE8s;
       });
       switch (result) {
@@ -5708,7 +5712,7 @@ persistent actor ArcadeBackend {
         fee = ?ICP_LEDGER_FEE_E8S;
         memo = null;
         from_subaccount = null;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = amountE8s;
       });
       switch (result) {
@@ -6738,6 +6742,102 @@ persistent actor ArcadeBackend {
   /// Creator/seller claims accumulated ICP-denominated game creator earnings, NFT seller earnings, plus separated ICP refunds.
   /// Funds move from the canister main treasury account into the caller's derived subaccount,
   /// after which the normal withdraw UI can send ICP to any principal or account ID.
+  /// Claim only the creator earnings balance (the combined claimRoyalties button still pays everything).
+  public shared(msg) func claimCreatorEarningsOnly() : async Result.Result<Nat, Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    hydrateRuntimeStateIfNeeded();
+    let balance = getGameCreatorEarningsBalance(caller);
+    if (balance == 0) return #err("No claimable creator earnings");
+    if (balance < ROYALTY_CLAIM_MIN_E8S) {
+      return #err(
+        "Minimum claim is " # Nat.toText(ROYALTY_CLAIM_MIN_E8S) #
+        " e8s; current creator earnings balance is " # Nat.toText(balance) # " e8s"
+      );
+    };
+    // Debit before the ledger await so an overlapping claim sees zero and cannot double-pay.
+    royalties.put(caller, 0);
+    try {
+      let result = await ICP_LEDGER.icrc1_transfer({
+        to = { owner = caller; subaccount = null };
+        fee = ?ICP_LEDGER_FEE_E8S;
+        memo = null;
+        from_subaccount = null;
+        created_at_time = ?ledgerNow();
+        amount = balance - ICP_LEDGER_FEE_E8S; // claimant pays the ledger fee
+      });
+      switch (result) {
+        case (#Ok(_blockIndex)) { #ok(balance - ICP_LEDGER_FEE_E8S) };
+        case (#Err(e)) {
+          restoreGameCreatorEarningsBalance(caller, balance);
+          switch (e) {
+            case (#InsufficientFunds(f)) {
+              #err("Treasury has insufficient funds: " # Nat.toText(f.balance) # " e8s available")
+            };
+            case (#BadFee(f)) {
+              #err("Bad fee while claiming creator earnings: expected " # Nat.toText(f.expected_fee))
+            };
+            case (#GenericError(ge)) {
+              #err("Ledger error " # Nat.toText(ge.error_code) # ": " # ge.message)
+            };
+            case (_) { #err("Claim transfer failed") };
+          }
+        };
+      }
+    } catch (e) {
+      restoreGameCreatorEarningsBalance(caller, balance);
+      #err("Claim transfer error: " # Error.message(e))
+    }
+  };
+
+  /// Claim only the NFT seller earnings balance (the combined claimRoyalties button still pays everything).
+  public shared(msg) func claimNftSellerEarningsOnly() : async Result.Result<Nat, Text> {
+    let caller = msg.caller;
+    if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
+    hydrateRuntimeStateIfNeeded();
+    let balance = getNftSellerEarningsBalance(caller);
+    if (balance == 0) return #err("No claimable NFT seller earnings");
+    if (balance < ROYALTY_CLAIM_MIN_E8S) {
+      return #err(
+        "Minimum claim is " # Nat.toText(ROYALTY_CLAIM_MIN_E8S) #
+        " e8s; current NFT seller earnings balance is " # Nat.toText(balance) # " e8s"
+      );
+    };
+    // Debit before the ledger await so an overlapping claim sees zero and cannot double-pay.
+    nftSellerEarningsE8s.put(caller, 0);
+    try {
+      let result = await ICP_LEDGER.icrc1_transfer({
+        to = { owner = caller; subaccount = null };
+        fee = ?ICP_LEDGER_FEE_E8S;
+        memo = null;
+        from_subaccount = null;
+        created_at_time = ?ledgerNow();
+        amount = balance - ICP_LEDGER_FEE_E8S; // claimant pays the ledger fee
+      });
+      switch (result) {
+        case (#Ok(_blockIndex)) { #ok(balance - ICP_LEDGER_FEE_E8S) };
+        case (#Err(e)) {
+          restoreNftSellerEarningsBalance(caller, balance);
+          switch (e) {
+            case (#InsufficientFunds(f)) {
+              #err("Treasury has insufficient funds: " # Nat.toText(f.balance) # " e8s available")
+            };
+            case (#BadFee(f)) {
+              #err("Bad fee while claiming NFT seller earnings: expected " # Nat.toText(f.expected_fee))
+            };
+            case (#GenericError(ge)) {
+              #err("Ledger error " # Nat.toText(ge.error_code) # ": " # ge.message)
+            };
+            case (_) { #err("Claim transfer failed") };
+          }
+        };
+      }
+    } catch (e) {
+      restoreNftSellerEarningsBalance(caller, balance);
+      #err("Claim transfer error: " # Error.message(e))
+    }
+  };
+
   public shared(msg) func claimRoyalties() : async Result.Result<Nat, Text> {
     let caller = msg.caller;
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
@@ -6766,7 +6866,7 @@ persistent actor ArcadeBackend {
         fee = ?ICP_LEDGER_FEE_E8S;
         memo = null;
         from_subaccount = null;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = balance - ICP_LEDGER_FEE_E8S; // claimant pays the ledger fee
       });
       switch (result) {
@@ -6909,6 +7009,19 @@ persistent actor ArcadeBackend {
   transient let AUTO_PAYOUT_MAX_PER_TICK : Nat = 20;
   transient let AUTO_PAYOUT_MAX_FAILURES : Nat = 3;
   transient var autoPayoutBusySince : Int = 0;
+  // Auto-payout retry stamps: a failed attempt keeps its created_at_time so the hourly retry
+  // re-sends the identical transfer. If the first one actually landed, the ledger answers
+  // #Duplicate and we record it as paid instead of paying again. Cleared on success.
+  transient var autoPayoutStamp : [(Principal, Nat64)] = [];
+  func payoutStampOf(p : Principal) : Nat64 {
+    for ((q, t) in autoPayoutStamp.vals()) { if (Principal.equal(q, p)) return t };
+    let t = ledgerNow();
+    autoPayoutStamp := Array.append<(Principal, Nat64)>(autoPayoutStamp, [(p, t)]);
+    t
+  };
+  func clearPayoutStamp(p : Principal) {
+    autoPayoutStamp := Array.filter<(Principal, Nat64)>(autoPayoutStamp, func((q, _)) { not Principal.equal(q, p) });
+  };
   transient let LEGACY_ICP_LEDGER : actor { transfer : shared {
     to : Blob; fee : { e8s : Nat64 }; memo : Nat64;
     from_subaccount : ?Blob; created_at_time : ?{ timestamp_nanos : Nat64 };
@@ -7003,16 +7116,26 @@ persistent actor ArcadeBackend {
       if (dest.kind == "account") {
         switch (hexToBlob(dest.accountHex)) {
           case (?to) {
-            let r = await LEGACY_ICP_LEDGER.transfer({ to = to; fee = { e8s = 10_000 : Nat64 }; memo = 0 : Nat64; from_subaccount = null; created_at_time = null; amount = { e8s = Nat64.fromNat(amount) } });
-            switch (r) { case (#Ok(_)) { ok := true }; case (#Err(_)) { errText := "Ledger rejected the transfer (check the account ID)" } };
+            let r = await LEGACY_ICP_LEDGER.transfer({ to = to; fee = { e8s = 10_000 : Nat64 }; memo = 0 : Nat64; from_subaccount = null; created_at_time = ?{ timestamp_nanos = payoutStampOf(p) }; amount = { e8s = Nat64.fromNat(amount) } });
+            switch (r) {
+              case (#Ok(_)) { ok := true };
+              case (#Err(#TxDuplicate(_))) { ok := true }; // the earlier attempt landed: already paid
+              case (#Err(#TxTooOld(_))) { clearPayoutStamp(p); errText := "Retry window passed; will retry with a fresh transfer" };
+              case (#Err(_)) { errText := "Ledger rejected the transfer (check the account ID)" };
+            };
           };
           case null { errText := "Invalid account ID" };
         };
       } else {
         switch (dest.owner) {
           case (?o) {
-            let r = await ICP_LEDGER.icrc1_transfer({ to = { owner = o; subaccount = dest.subaccount }; fee = ?ICP_LEDGER_FEE_E8S; memo = null; from_subaccount = null; created_at_time = null; amount = amount });
-            switch (r) { case (#Ok(_)) { ok := true }; case (#Err(_)) { errText := "Ledger rejected the transfer" } };
+            let r = await ICP_LEDGER.icrc1_transfer({ to = { owner = o; subaccount = dest.subaccount }; fee = ?ICP_LEDGER_FEE_E8S; memo = null; from_subaccount = null; created_at_time = ?payoutStampOf(p); amount = amount });
+            switch (r) {
+              case (#Ok(_)) { ok := true };
+              case (#Err(#Duplicate(_))) { ok := true }; // the earlier attempt landed: already paid
+              case (#Err(#TooOld)) { clearPayoutStamp(p); errText := "Retry window passed; will retry with a fresh transfer" };
+              case (#Err(_)) { errText := "Ledger rejected the transfer" };
+            };
           };
           case null { errText := "Missing principal" };
         };
@@ -7020,6 +7143,7 @@ persistent actor ArcadeBackend {
     } catch (e) { errText := "Transfer error: " # Error.message(e) };
     let c = autoPayoutOf(p);
     if (ok) {
+      clearPayoutStamp(p);
       putAutoPayout(p, { c with lastPayoutAt = now; lastAmount = amount; lastResult = "Paid"; failures = 0 });
     } else {
       restoreGameCreatorEarningsBalance(p, g); restoreNftSellerEarningsBalance(p, sl); restoreRefundBalance(p, rf); restoreTipEarningsBalance(p, tp);
@@ -7088,7 +7212,7 @@ persistent actor ArcadeBackend {
         fee = ?ICP_LEDGER_FEE_E8S;
         memo = null;
         from_subaccount = null;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = balance - ICP_LEDGER_FEE_E8S; // claimant pays the ledger fee
       });
       switch (result) {
@@ -7712,7 +7836,7 @@ persistent actor ArcadeBackend {
         fee = null;
         memo = null;
         from_subaccount = ?OPERATING_TREASURY_SUBACCOUNT;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = amountE8s;
       });
       operatingTreasuryWithdrawalInFlight := false;
@@ -7758,7 +7882,7 @@ persistent actor ArcadeBackend {
         fee = null;
         memo = null;
         from_subaccount = ?BLACKHOLE_TREASURY_SUBACCOUNT;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = amountE8s;
       });
       blackholeTreasuryWithdrawalInFlight := false;
@@ -7820,7 +7944,7 @@ persistent actor ArcadeBackend {
         fee = { e8s = 10_000 : Nat64 };
         memo = 0 : Nat64;
         from_subaccount = ?OPERATING_TREASURY_SUBACCOUNT;
-        created_at_time = null;
+        created_at_time = ?{ timestamp_nanos = ledgerNow() };
         amount = { e8s = Nat64.fromNat(amountE8s) };
       });
       operatingTreasuryWithdrawalInFlight := false;
@@ -7899,7 +8023,7 @@ persistent actor ArcadeBackend {
         fee = null;
         memo = null;
         from_subaccount = ?fromSub;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = convertedE8s;
       });
       switch (transferResult) {
@@ -8084,7 +8208,7 @@ persistent actor ArcadeBackend {
         fee = null;
         memo = null;
         from_subaccount = ?fromSub;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = HOLE_SUBMISSION_FEE_E8S;
       });
       switch (transferResult) {
@@ -8321,7 +8445,7 @@ persistent actor ArcadeBackend {
         fee = null;
         memo = null;
         from_subaccount = ?fromSub;
-        created_at_time = null;
+        created_at_time = ?ledgerNow();
         amount = amountE8s;
       });
       switch (result) {
