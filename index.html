@@ -2031,6 +2031,30 @@ window.addEventListener('message', (e) => {
 .atr-chip .v{font-size:1.15rem;font-weight:900;color:#fff;margin-top:4px}
 .atr-chip .h{font-size:.6rem;color:#64748b;margin-top:2px}
 .atr-details{border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.02);padding:10px 14px;margin-bottom:6px}
+.pot-open{margin-top:12px;align-self:flex-start;padding:8px 16px;border-radius:10px;border:1px solid var(--pc);background:color-mix(in srgb,var(--pc) 14%,transparent);color:var(--pc);font-weight:800;font-size:.74rem;letter-spacing:1px;cursor:pointer}
+.pot-open:hover{background:color-mix(in srgb,var(--pc) 24%,transparent)}
+.pot-wd{display:none;margin-top:12px;padding:14px;border-radius:12px;background:rgba(0,0,0,.35);border:1px solid color-mix(in srgb,var(--pc) 40%,transparent)}
+.pot-wd.on{display:block}
+.pot-wd .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.pot-wd .ph b{font-size:.62rem;letter-spacing:2px;color:var(--pc)}
+.pot-wd .px{background:none;border:0;color:#94a3b8;font-size:1rem;cursor:pointer;line-height:1}
+.pot-wd label{display:block;font-size:.56rem;letter-spacing:2px;color:#64748b;margin:8px 0 4px;font-weight:800}
+.pot-wd .pi{width:100%;box-sizing:border-box;padding:9px 11px;background:rgba(0,0,0,.45);border:1px solid rgba(148,163,184,.25);border-radius:9px;color:#fff;font-size:.74rem;outline:none}
+.pot-wd .pi:focus{border-color:var(--pc);box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 15%,transparent)}
+.pot-wd .pdest{display:flex;gap:6px}
+.pot-wd .pme{flex:none;padding:0 10px;border-radius:9px;border:1px solid rgba(148,163,184,.3);background:transparent;color:#cbd5e1;font-size:.62rem;font-weight:800;cursor:pointer}
+.pot-wd .pamt{position:relative}
+.pot-wd .pamt .pi{padding-right:84px;font-size:.9rem;font-weight:800}
+.pot-wd .pamt span{position:absolute;right:50px;top:50%;transform:translateY(-50%);font-size:.62rem;color:#64748b}
+.pot-wd .pmax{position:absolute;right:6px;top:50%;transform:translateY(-50%);padding:3px 7px;border-radius:6px;border:1px solid var(--pc);background:color-mix(in srgb,var(--pc) 12%,transparent);color:var(--pc);font-size:.56rem;font-weight:900;letter-spacing:1px;cursor:pointer}
+.pot-wd input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.pot-wd input[type=number]::-webkit-inner-spin-button,.pot-wd input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.pot-wd .pnote{font-size:.6rem;color:#64748b;margin-top:6px}
+.pot-wd .pbtns{display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-top:12px}
+.pot-wd .pgo{padding:10px;border-radius:10px;border:1px solid var(--pc);background:color-mix(in srgb,var(--pc) 22%,transparent);color:#fff;font-weight:900;font-size:.76rem;letter-spacing:1px;cursor:pointer}
+.pot-wd .pno{padding:10px;border-radius:10px;border:1px solid rgba(148,163,184,.3);background:transparent;color:#cbd5e1;font-weight:700;font-size:.72rem;cursor:pointer}
+.pot-wd .pst{font-size:.66rem;margin-top:8px;min-height:1em}
+.pot-wd button:disabled{opacity:.5;cursor:wait}
 .atr-details summary{cursor:pointer;font-size:.66rem;letter-spacing:2px;font-weight:800;color:#cbd5e1}
 </style>
 <div class='atr-nav'>
@@ -13065,6 +13089,61 @@ function treasurySafetyBreakdownHtml(t){
   </div>`;
 }
 
+const POT_WD={
+  showroom:{name:'Showroom',fn:'adminWithdrawShowroomTreasury'},
+  back:{name:'The Back',fn:'adminWithdrawBackTreasury'},
+  blackhole:{name:'Blackhole',fn:'adminWithdrawBlackholeTreasury'}
+};
+const POT_FEE_E8S=10000n;
+const _potBusy={};
+function potWdDrawer(kind,availE8s,color){
+  const avail=BigInt(Math.max(0,Math.floor(Number(availE8s||0))));
+  const max=avail>POT_FEE_E8S?avail-POT_FEE_E8S:0n;
+  return `<button class="pot-open" id="potOpen_${kind}" style="--pc:${color}" onclick="potWdToggle('${kind}',true)" ${max>0n?'':'disabled'}>&#8599; Withdraw</button>
+  <div class="pot-wd" id="potWd_${kind}" style="--pc:${color}" data-max="${max}">
+    <div class="ph"><b>WITHDRAW FROM ${POT_WD[kind].name.toUpperCase()}</b><button class="px" onclick="potWdToggle('${kind}',false)" aria-label="Close">&times;</button></div>
+    <label>SEND TO</label>
+    <div class="pdest"><input class="pi" id="potDest_${kind}" placeholder="Principal" autocomplete="off" spellcheck="false"/><button class="pme" onclick="document.getElementById('potDest_${kind}').value=S.principalText||''" title="Use my connected principal">ME</button></div>
+    <label>AMOUNT</label>
+    <div class="pamt"><input class="pi" id="potAmt_${kind}" type="number" step="0.0001" min="0.0002" placeholder="0.0000"/><span>ICP</span><button class="pmax" onclick="potWdMax('${kind}')">MAX</button></div>
+    <div class="pnote">Available ${e8sToIcpInput(max)} ICP after the 0.0001 ICP network fee (paid by the pot).</div>
+    <div class="pbtns"><button class="pgo" id="potGo_${kind}" onclick="potWdSubmit('${kind}')">Withdraw</button><button class="pno" onclick="potWdToggle('${kind}',false)">Cancel</button></div>
+    <div class="pst" id="potSt_${kind}"></div>
+  </div>`;
+}
+window.potWdToggle=function(kind,on){
+  const d=document.getElementById('potWd_'+kind), b=document.getElementById('potOpen_'+kind); if(!d) return;
+  d.classList.toggle('on',!!on); if(b) b.style.display=on?'none':'';
+  if(on){ const dest=document.getElementById('potDest_'+kind); if(dest&&!dest.value) dest.value=S.principalText||''; document.getElementById('potAmt_'+kind)?.focus(); }
+};
+window.potWdMax=function(kind){
+  const d=document.getElementById('potWd_'+kind), i=document.getElementById('potAmt_'+kind);
+  if(d&&i) i.value=e8sToIcpInput(BigInt(d.dataset.max||'0'));
+};
+window.potWdSubmit=async function(kind){
+  if(!isAdmin()||_potBusy[kind]) return;
+  const d=document.getElementById('potWd_'+kind), st=document.getElementById('potSt_'+kind);
+  const err=m=>{ if(st) st.innerHTML='<span style="color:#ef4444">'+escHtml(m)+'</span>'; };
+  const str=(document.getElementById('potAmt_'+kind)?.value||'').trim(), n=Number(str);
+  if(!str||isNaN(n)||n<0.0002) return err('Enter at least 0.0002 ICP.');
+  const amountE8s=BigInt(Math.round(n*1e8)), max=BigInt(d?.dataset.max||'0');
+  if(amountE8s>max) return err('That is more than the '+e8sToIcpInput(max)+' ICP available.');
+  const dest=(document.getElementById('potDest_'+kind)?.value||'').trim();
+  let owner; try{ owner=Principal.fromText(dest); }catch(_){ return err('Enter a valid principal.'); }
+  const name=POT_WD[kind].name;
+  if(!await arcadeConfirm('Withdraw from '+name,'<b>Amount:</b> '+escHtml(str)+' ICP<br><b>To:</b><br><code style="word-break:break-all;color:#88ccff;font-size:.75rem">'+escHtml(dest)+'</code><br><br>The 0.0001 ICP network fee is paid by the '+escHtml(name)+' pot.')) return;
+  _potBusy[kind]=true;
+  d?.querySelectorAll('button,input').forEach(x=>x.disabled=true);
+  if(st) st.innerHTML='<span style="color:var(--cyan)">Withdrawing…</span>';
+  try{
+    const be=await getBackendActor(true);
+    const r=await be[POT_WD[kind].fn]({owner,subaccount:[]},amountE8s);
+    if(r.err!==undefined){ err(safeUserErrorMessage(r.err,'admin action')); return; }
+    await arcadeAlert('Withdrawal sent','Sent '+escHtml(str)+' ICP from '+escHtml(name)+' (ledger block '+escHtml(String(r.ok))+').');
+    loadTreasuryInfo(); try{ renderAdminTreasuryOverview(); }catch(_){}
+  }catch(e){ err(safeUserErrorMessage(e,'admin action')); }
+  finally{ _potBusy[kind]=false; d?.querySelectorAll('button,input').forEach(x=>x.disabled=false); }
+};
 function renderTreasuryDepositTargets(protectedAccountId,operatingAccountId,ownerPrincipal='',blackholeE8s=0,blackholeWithdrawableE8s=0,backE8s=0,backWithdrawableE8s=0,showroomE8s=0,showroomWithdrawableE8s=0){
   const copyDiv=(accountId,labelColor='#fff')=>`<div style="font-size:.72rem;color:${labelColor};word-break:break-all;cursor:pointer;font-weight:700" title="Click to copy" onclick="navigator.clipboard.writeText('${accountId||''}');this.textContent='Copied!';setTimeout(()=>this.textContent='${accountId||'Unavailable'}',1500)">${accountId||'Unavailable'}</div>`;
   const showroomIcp=(Number(showroomE8s||0)/1e8).toFixed(4);
@@ -13081,7 +13160,7 @@ function renderTreasuryDepositTargets(protectedAccountId,operatingAccountId,owne
           <div style="font-size:.58rem;color:#e8d99a">Available to Withdraw</div>
         </div>
       </div>
-      <button class="btn" onclick="openShowroomTreasuryWithdraw()" style="margin-top:10px;padding:6px 12px;font-size:.7rem;border-color:#ffd700;color:#ffd700">Withdraw</button>
+      ${potWdDrawer('showroom',showroomWithdrawableE8s,'#ffd700')}
     </div>`:'';
   const backIcp=(Number(backE8s||0)/1e8).toFixed(4);
   const backWithdrawableIcp=(Number(backWithdrawableE8s||0)/1e8).toFixed(4);
@@ -13097,7 +13176,7 @@ function renderTreasuryDepositTargets(protectedAccountId,operatingAccountId,owne
           <div style="font-size:.58rem;color:#8fdcff">Available to Withdraw</div>
         </div>
       </div>
-      <button class="btn" onclick="openBackTreasuryWithdraw()" style="margin-top:10px;padding:6px 12px;font-size:.7rem;border-color:#00aaff;color:#00aaff">Withdraw</button>
+      ${potWdDrawer('back',backWithdrawableE8s,'#38bdf8')}
     </div>`:'';
   const blackholeIcp=(Number(blackholeE8s||0)/1e8).toFixed(4);
   const blackholeWithdrawableIcp=(Number(blackholeWithdrawableE8s||0)/1e8).toFixed(4);
@@ -13113,7 +13192,7 @@ function renderTreasuryDepositTargets(protectedAccountId,operatingAccountId,owne
           <div style="font-size:.58rem;color:#e0a8d0">Available to Withdraw</div>
         </div>
       </div>
-      <button class="btn" onclick="openBlackholeTreasuryWithdraw()" style="margin-top:10px;padding:6px 12px;font-size:.7rem;border-color:#ff77dd;color:#ff77dd">Withdraw</button>
+      ${potWdDrawer('blackhole',blackholeWithdrawableE8s,'#ff77dd')}
     </div>`:'';
   const revCards=showroomCard+backCard+blackholeCard;
   return `<div style="display:grid;gap:12px">
