@@ -722,7 +722,6 @@ persistent actor ArcadeBackend {
   stable var escrowEntries : [(Text, EscrowedNft)] = []; // keyed by listingId
 
 
-
   // Phase 2 shared forums/proposals. These stable arrays are additive and do
   // not change existing stable record shapes.
   stable var forumThreadEntries : [ForumThread] = [];
@@ -1190,9 +1189,6 @@ persistent actor ArcadeBackend {
     Principal.equal(caller, JAY_PRINCIPAL);
   };
 
-  public query func isAdminPrincipal(principal : Principal) : async Bool {
-    isAdmin(principal);
-  };
 
   func getCost(tokenId : TokenId) : Nat {
     if (runtimeStateHydrated) {
@@ -1332,9 +1328,6 @@ persistent actor ArcadeBackend {
     };
   };
 
-  func restoreRoyaltyBalance(creator : Principal, amountE8s : Nat) {
-    restoreGameCreatorEarningsBalance(creator, amountE8s);
-  };
 
   func restoreGameCreatorEarningsBalance(creator : Principal, amountE8s : Nat) {
     let current = getGameCreatorEarningsBalance(creator);
@@ -1415,9 +1408,6 @@ persistent actor ArcadeBackend {
     Text.size(value) == 0;
   };
 
-  func isTicketGameTier(gameTier : Text) : Bool {
-    gameTier == "showroom" or gameTier == "jays-picks";
-  };
 
   // Real, authoritative source of ticket-pool eligibility - the creator's own explicit choice via
   // setGameMonetization above, not the game's tier. Replaces the old pure-tier rule entirely (no
@@ -1675,18 +1665,6 @@ persistent actor ArcadeBackend {
     false;
   };
 
-  func collectionAbilitiesForIds(nftIds : [Nat]) : [(Text, Text)] {
-    let abilityEntries = if (runtimeStateHydrated) { Iter.toArray(officialCollectionAbilities.entries()) } else { officialCollectionAbilityEntries };
-    let buf = Buffer.Buffer<(Text, Text)>(nftIds.size());
-    for (tokenId in nftIds.vals()) {
-      for ((abilityTokenId, ability) in abilityEntries.vals()) {
-        if (abilityTokenId == tokenId) {
-          buf.add((Nat.toText(tokenId), ability));
-        };
-      };
-    };
-    Buffer.toArray(buf);
-  };
 
   func withFreshCollectionAbilities(collection : OfficialCollection) : OfficialCollection {
     {
@@ -2021,51 +1999,7 @@ persistent actor ArcadeBackend {
   };
 
   func getPlaysInLastHour(player : Principal) : Nat { recentPlaysOf(player, Time.now()).size() };
-  func legacyPlaysInLastHour(player : Principal) : Nat {
-    let cutoff = Time.now() - 3_600_000_000_000; // 1 hour ago
-    var count : Nat = 0;
-    if (runtimeStateHydrated) {
-      let size = playLog.size();
-      var i = size;
-      while (i > 0) {
-        i -= 1;
-        let (p, t) = playLog.get(i);
-        if (t < cutoff) { i := 0 }
-        else if (Principal.equal(p, player)) { count += 1 };
-      };
-    } else {
-      let size = playLogEntries.size();
-      var i = size;
-      while (i > 0) {
-        i -= 1;
-        let (p, t) = playLogEntries[i];
-        if (t < cutoff) { i := 0 }
-        else if (Principal.equal(p, player)) { count += 1 };
-      };
-    };
-    count;
-  };
 
-  func getLastPlayTime(player : Principal) : Int {
-    if (runtimeStateHydrated) {
-      let size = playLog.size();
-      var i = size;
-      while (i > 0) {
-        i -= 1;
-        let (p, t) = playLog.get(i);
-        if (Principal.equal(p, player)) return t;
-      };
-    } else {
-      let size = playLogEntries.size();
-      var i = size;
-      while (i > 0) {
-        i -= 1;
-        let (p, t) = playLogEntries[i];
-        if (Principal.equal(p, player)) return t;
-      };
-    };
-    0;
-  };
 
   func getTotalPlays(player : Principal) : Nat {
     if (runtimeStateHydrated) {
@@ -2100,7 +2034,6 @@ persistent actor ArcadeBackend {
     dailyTickets.put(player, (current + amount, dayStart));
   };
 
-  func payoutLevels() : [Nat] { [0, 1, 2, 3, 4, 5, 6] };
 
   func validatePayoutThresholds(thresholds : [Nat]) : Result.Result<(), Text> {
     if (thresholds.size() != 8) {
@@ -3083,9 +3016,6 @@ persistent actor ArcadeBackend {
     m
   };
 
-  public query func getGameTopScores(gameId : Text) : async [(Principal, Nat, Int)] {
-    gameTopScores(gameId)
-  };
 
   // === PROFILE DATA (session #3, profile stage 1) ===
   // Personal bests per player per Showroom Ticket game (submitGameScore only runs for Ticket games) and the
@@ -3210,14 +3140,6 @@ persistent actor ArcadeBackend {
     };
   };
 
-  /// Get all high scores
-  public query func getAllHighScores() : async [(Text, LeaderboardEntry)] {
-    if (runtimeStateHydrated) {
-      Iter.toArray(leaderboards.entries());
-    } else {
-      leaderboardEntries;
-    };
-  };
 
   /// Submit high score manually. Player-facing high scores must go through
   /// submitGameScore() so records are tied to a validated paid session.
@@ -3689,20 +3611,6 @@ persistent actor ArcadeBackend {
     #ok("Ability assigned");
   };
 
-  public shared(msg) func adminSetCollectionTokenAbility(collectionId : Text, tokenId : Nat, ability : Text) : async Result.Result<Text, Text> {
-    assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
-    if (not isAdmin(msg.caller)) return #err("Not authorized");
-    hydrateRuntimeStateIfNeeded();
-    switch (officialCollections.get(collectionId)) {
-      case null { #err("Collection not found") };
-      case (?collection) {
-        if (not collectionContainsToken(collection, tokenId)) return #err("Token is not in this collection");
-        officialCollectionAbilities.put(tokenId, ability);
-        putOfficialCollection(collection);
-        #ok("Ability assigned");
-      };
-    };
-  };
 
   public shared(msg) func adminBatchAssignAbilities(assignments : [(Nat, Text)]) : async Result.Result<Text, Text> {
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
@@ -3735,20 +3643,6 @@ persistent actor ArcadeBackend {
     #ok("Ability removed");
   };
 
-  public shared(msg) func adminClearCollectionTokenAbility(collectionId : Text, tokenId : Nat) : async Result.Result<Text, Text> {
-    assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
-    if (not isAdmin(msg.caller)) return #err("Not authorized");
-    hydrateRuntimeStateIfNeeded();
-    switch (officialCollections.get(collectionId)) {
-      case null { #err("Collection not found") };
-      case (?collection) {
-        if (not collectionContainsToken(collection, tokenId)) return #err("Token is not in this collection");
-        officialCollectionAbilities.delete(tokenId);
-        putOfficialCollection(collection);
-        #ok("Ability removed");
-      };
-    };
-  };
 
   // === OFFICIAL NFT ABILITIES (phase 1: foundation) ===
   // Secret by design: assignments are only readable through admin-only queries. Collection abilities live in
@@ -3844,10 +3738,6 @@ persistent actor ArcadeBackend {
     var n : Nat = 0;
     for ((a, _) in abilityInstancesOf(p).vals()) { if (a == id) { n += 1 } };
     n
-  };
-  func abilityValueOf(p : Principal, id : Text) : ?Text {
-    for ((a, v) in abilityInstancesOf(p).vals()) { if (a == id) return ?v };
-    null
   };
 
   // === NFT game perk tags (not secret). Games read them, plus GXP/DXP/MXP, via getMyGamePerks. ===
@@ -6310,27 +6200,6 @@ persistent actor ArcadeBackend {
     Iter.toArray(gameSubmissions.vals());
   };
 
-  /// Admin: promote game to Jay's Picks
-  public shared(msg) func promoteGameToJaysPicks(gameId : Text) : async Result.Result<Text, Text> {
-    assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
-    if (not isAdmin(msg.caller)) return #err("Not authorized");
-    hydrateRuntimeStateIfNeeded();
-    switch (gameSubmissions.get(gameId)) {
-      case null { return #err("Game not found") };
-      case (?game) {
-        let updated : GameSubmission = {
-          id = game.id; name = game.name; developer = game.developer;
-          url = game.url; thumbnailUrl = game.thumbnailUrl; description = game.description;
-          compatibility = game.compatibility; creator = game.creator;
-          gameTier = "jays-picks"; status = game.status;
-          feePaid = game.feePaid; showroomFeePaid = game.showroomFeePaid;
-          txId = game.txId; createdAt = game.createdAt;
-        };
-        gameSubmissions.put(gameId, updated);
-        #ok("Game promoted to Jay's Picks!");
-      };
-    };
-  };
 
   /// Admin: remove game
   public shared(msg) func removeGameSubmission(gameId : Text) : async Result.Result<Text, Text> {
@@ -6613,20 +6482,6 @@ persistent actor ArcadeBackend {
     });
   };
 
-  /// Audit/query surface for Model A reserve coverage. Raw is internal accrual,
-  /// backed is the public outstanding ticket liability, and backed never falls
-  /// back to legacy raw counters after migration.
-  public query func getTicketReserveAudit() : async {
-    totalRawTicketPool : Nat;
-    totalBackedTicketPool : Nat;
-    outstandingBackedLiability : Nat;
-    coverageGap : Nat;
-    surplusBacking : Nat;
-    unbackedRawExposure : Nat;
-    ticketGameCount : Nat;
-  } {
-    getTicketReserveAuditSnapshot();
-  };
 
   public query func getRecentTicketJackpotWins(limit : Nat) : async [TicketJackpotWin] {
     let boundedLimit = if (limit > 50) 50 else limit;
@@ -7583,10 +7438,6 @@ persistent actor ArcadeBackend {
   // === REVENUE & STATS ===
   // ============================================
 
-  /// Get revenue log (admin only)
-  public query func getRevenueLog() : async [RevenueEvent] {
-    revenueLogEntries;
-  };
 
   /// Get total revenue collected (in e8s)
   public query func getTotalRevenue() : async Nat {
@@ -7646,33 +7497,6 @@ persistent actor ArcadeBackend {
     #ok(count);
   };
 
-  /// Set ticket cost for an NFT (admin only)
-  public shared(msg) func setNftCost(tokenId : TokenId, cost : Nat) : async Result.Result<(), Text> {
-    assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
-    if (not isAdmin(msg.caller)) return #err("Not authorized");
-    hydrateRuntimeStateIfNeeded();
-    costs.put(tokenId, cost);
-    #ok();
-  };
-
-  /// Batch set NFT costs (admin only)
-  public shared(msg) func batchSetNftCosts(entries : [(TokenId, Nat)]) : async Result.Result<(), Text> {
-    assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
-    if (not isAdmin(msg.caller)) return #err("Not authorized");
-    hydrateRuntimeStateIfNeeded();
-    for ((id, cost) in entries.vals()) {
-      costs.put(id, cost);
-    };
-    #ok();
-  };
-
-  /// Set default ticket cost (admin only)
-  public shared(msg) func setDefaultCost(cost : Nat) : async Result.Result<(), Text> {
-    assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
-    if (not isAdmin(msg.caller)) return #err("Not authorized");
-    defaultCost := cost;
-    #ok();
-  };
 
   /// Get ticket balance for a player
   public query func getTickets(player : Principal) : async Nat {
@@ -7693,28 +7517,6 @@ persistent actor ArcadeBackend {
     };
   };
 
-  /// Get redemption history
-  public query func getRedemptions() : async [(Principal, TokenId, Int)] {
-    redemptionLog;
-  };
-
-  /// Get all ticket balances (admin view)
-  public query func getAllTickets() : async [(Principal, Nat)] {
-    if (runtimeStateHydrated) {
-      Iter.toArray(tickets.entries());
-    } else {
-      ticketEntries;
-    };
-  };
-
-  /// Get all token balances
-  public query func getAllTokens() : async [(Principal, Nat)] {
-    if (runtimeStateHydrated) {
-      Iter.toArray(tokens.entries());
-    } else {
-      tokenEntries;
-    };
-  };
 
   /// Get total circulation stats (admin dashboard)
   public query func getTotalCirculation() : async { totalTickets : Nat; totalTokens : Nat; totalPlayers : Nat } {
@@ -8689,11 +8491,6 @@ persistent actor ArcadeBackend {
     true
   };
 
-  // Raw count of VP Badges held, distinct from votingPowerOf's weighted total (currently 5 per
-  // badge) — used for DXP, where each badge held contributes exactly 1 vote per proposal.
-  func badgeCountOf(owner : Principal) : Nat {
-    getBadgesForOwner(owner).size();
-  };
 
   func hasContributorBadge(owner : Principal) : Bool {
     for (badge in getBadgesForOwner(owner).vals()) {
@@ -8706,9 +8503,6 @@ persistent actor ArcadeBackend {
     false;
   };
 
-  func hasDaoAccess(owner : Principal) : Bool {
-    isAdmin(owner) or votingPowerOf(owner) > 0;
-  };
 
   func hasForumMediaAccess(owner : Principal) : Bool {
     isAdmin(owner) or votingPowerOf(owner) > 0 or hasContributorBadge(owner);
@@ -9605,10 +9399,6 @@ persistent actor ArcadeBackend {
     { proposals = proposalEntries.size(); activeProposals = active; badgeHolders = gamerBadgeEntries.size(); forumThreads = forumThreadEntries.size() }
   };
 
-  // === HEALTH CHECK ===
-  public query func whoami() : async Principal {
-    Principal.fromActor(ArcadeBackend);
-  };
 
   public query func stats() : async {
     totalPlayers : Nat;
