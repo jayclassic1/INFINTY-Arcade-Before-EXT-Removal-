@@ -19,9 +19,9 @@ check_ic() {
   fi
 }
 
-frontend() { check_ic; node scripts/build-frontend-publish.mjs && icp deploy frontend "${E[@]}"; }
-backend()  { check_ic; icp deploy arcade_backend -m upgrade "${E[@]}" --yes; }
-nft()      { check_ic; icp deploy nft_canister -m upgrade "${E[@]}" --yes; }
+frontend() { check_ic; node scripts/build-frontend-publish.mjs && icp deploy frontend ${E[@]+"${E[@]}"}; }
+backend()  { check_ic; icp deploy arcade_backend -m upgrade ${E[@]+"${E[@]}"} --yes; }
+nft()      { check_ic; icp deploy nft_canister -m upgrade ${E[@]+"${E[@]}"} --yes; }
 
 case "$WHAT" in
   frontend) frontend ;;
