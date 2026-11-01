@@ -310,7 +310,7 @@ body.ia-mobile #m-backroom-game>.panel{width:100vw!important;max-width:none!impo
 <footer class='mx-foot'>
 <p>Forums, the DAO and the Prize Booth are on desktop.</p>
 <button class='mx-link' onclick='openMobileManifesto()'>Read the manifesto</button>
-<div class='mx-cid'>mprew-viaaa-aaaah-quola-cai.icp0.io</div>
+<div class='mx-cid' id='mxCid'></div>
 </footer>
 </div>
 </div>
@@ -2470,36 +2470,38 @@ let _arcadeSessionState={gameId:'',latestScore:null,scoreSubmitted:false,closeCo
 const qs = id=>document.getElementById(id);
 const qUsd = q => ((q/C.Q_PER_ICP)*C.USD_PER_ICP).toFixed(2);
 // ============================================================================
-// DEPLOYMENT CONFIG — READ THIS BEFORE DEPLOYING TO A NEW ENVIRONMENT (e.g. mainnet)
+// DEPLOYMENT CONFIG - the only place canister IDs and admin principals live.
+// The page picks `local` or `ic` from its own hostname. Fill the `ic` entries after the first
+// mainnet deploy (IDs from .icp/data/mappings/ic.ids.json; admin = your principal as shown on
+// your Profile page when logged in ON MAINNET - it differs from the local one).
+// Verify before deploying:  grep -c "PASTE_MAINNET" index.html   -> must be 0 for mainnet.
 // ============================================================================
-// Every value below is environment-specific and MUST be updated together when
-// moving to a new deployment target. After editing, verify with:
-//   grep -n "OLD_CANISTER_ID_HERE" index.html backend/main.mo
-// ...and confirm it returns ZERO matches before deploying. (2026-08-15: we found
-// two of these hardcoded INSIDE function bodies, not just as consts below — always
-// grep the whole file, not just this block.)
-//
-//   LEDGER_CANISTER_ID   (line ~2485)  — real ICP ledger, same on every network, do NOT change
-//   ARCADE_CANISTER_ID   (line ~2486)  — this app's backend canister — CHANGE PER DEPLOY
-//   TREASURY_PRINCIPAL   (line ~2490)  — same as ARCADE_CANISTER_ID — CHANGE PER DEPLOY
-//   NFT_CANISTER          (line ~7208) — ICRC-7 NFT canister — CHANGE PER DEPLOY (or decide to keep shared)
-//   BACKEND_CANISTER      (line ~7209) — same as ARCADE_CANISTER_ID — CHANGE PER DEPLOY
-//   VAULT_PRINCIPAL       (line ~7210) — derived from BACKEND_CANISTER, no manual edit needed
-//   GAME_ASSET_CANISTER   (line ~12404)— game asset canister — CHANGE PER DEPLOY (or decide to keep shared)
-//
-// Backend (backend/main.mo) also needs, for every new deployment:
-//   JAY_PRINCIPAL, ADMINS              — admin principal(s), NOT canister IDs
-//   SELF_ACCOUNT_ID, OPERATING_TREASURY_ACCOUNT_ID — MUST be recomputed for the new
-//     canister's own principal (see recompute recipe comment in main.mo)
-//   nftCanisterIdText                  — set post-deploy via adminSetNftCanisterId()
-//
-// Root cause worth fixing properly later: icp-cli supports reading canister IDs at
-// runtime via the ic_env cookie (safeGetCanisterEnv from @icp-sdk/core/agent/canister-env),
-// which eliminates this whole category of bug — see docs.internetcomputer.org/guides/frontends/asset-canister.
-// Not implemented here because this frontend uses a hand-bundled dfinity-bundle.js
-// rather than an npm/Vite build, so adopting it needs care — worth doing as a
-// dedicated task rather than rushed alongside a deploy.
-// ============================================================================
+const IS_LOCAL_NET=(()=>{const h=location.hostname;return h==='localhost'||h.endsWith('.localhost')||h==='127.0.0.1';})();
+const ARCADE_ENVS={
+  local:{
+    backend:'4fbx2-kt777-77775-aaabq-cai',
+    nft:'4xhad-gd777-77775-aaacq-cai',
+    games:'4qggx-l3777-77775-aaaca-cai',
+    admins:['fvuhj-qdha4-tu5gc-4hvim-yaxae-g5grp-xjiz3-u5rpo-5cniw-gpolf-eqe'],
+    beta:'',
+  },
+  ic:{
+    backend:'PASTE_MAINNET_BACKEND_ID',
+    nft:'PASTE_MAINNET_NFT_ID',
+    games:'PASTE_MAINNET_GAMES_ID',
+    admins:['PASTE_MAINNET_ADMIN_PRINCIPAL'],
+    beta:'CLOSED BETA — balances may be reset when testing ends', // set to '' to hide the ribbon
+  },
+};
+const ENV=IS_LOCAL_NET?ARCADE_ENVS.local:ARCADE_ENVS.ic;
+document.addEventListener('DOMContentLoaded',()=>{const c=document.getElementById('mxCid');if(c)c.textContent=location.host;});
+const ENV_UNCONFIGURED=Object.values(ENV).flat().some(v=>String(v).startsWith('PASTE_'));
+if(ENV.beta){
+  document.addEventListener('DOMContentLoaded',()=>{const r=document.createElement('div');r.id='betaRibbon';r.style.cssText='position:fixed;left:12px;bottom:12px;z-index:9998;padding:5px 12px;border-radius:999px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.5);color:#fde68a;font:800 10px/1.4 system-ui;letter-spacing:2px;pointer-events:none';r.textContent=ENV.beta;document.body.appendChild(r);});
+}
+if(ENV_UNCONFIGURED){
+  document.addEventListener('DOMContentLoaded',()=>{const d=document.createElement('div');d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#7f1d1d;color:#fff;font:700 13px system-ui;padding:8px 14px;text-align:center';d.textContent='Mainnet canister IDs are not configured in index.html (ARCADE_ENVS.ic). This build will not work here.';document.body.appendChild(d);});
+}
 const LEDGER_CANISTER_ID='ryjl3-tyaaa-aaaaa-aaaba-cai';
 function assetCanisterUrl(canisterId){const h=location.hostname;if(h==="localhost"||h.endsWith(".localhost")||h==="127.0.0.1"){return "http://"+canisterId+".localhost"+(location.port?(":"+location.port):"");}return "https://"+canisterId+".icp0.io";}
 window.getBackendActor=function(u){return getBackendActor(u);};
@@ -2508,7 +2510,7 @@ window.getNftActor=function(){return getNftActor();};
 
 function icpHost(){const h=location.hostname;return (h==='localhost'||h.endsWith('.localhost')||h==='127.0.0.1')?('http://'+location.host):'https://icp-api.io';}
 async function fetchRootKeyIfLocal(agent){const h=location.hostname;if(h==='localhost'||h.endsWith('.localhost')||h==='127.0.0.1'){try{await agent.fetchRootKey();}catch(e){console.error('fetchRootKey failed:',e);}}}
-const ARCADE_CANISTER_ID='4fbx2-kt777-77775-aaabq-cai';
+const ARCADE_CANISTER_ID=ENV.backend;
 // Arcade backend's EXT account ID - computed at first use, verified correct
 let _arcadeAccountId=null;
 function getArcadeAccountId(){if(!_arcadeAccountId) _arcadeAccountId=principalToAccountHex(ARCADE_CANISTER_ID); return _arcadeAccountId;}
@@ -5969,13 +5971,13 @@ window.addEventListener('keyup',(e)=>{forwardArcadeKeyToGame(e,'up');});
 // === NFT PRIZE BOOTH (ICRC-7 Layer) ===
   // Test NFTs removed - real listings only
 const RARITY_COLORS={Common:'#9eb0d8',Uncommon:'#2df59d',Rare:'#00aaff',Legendary:'#ffd86b'};
-const NFT_CANISTER='4xhad-gd777-77775-aaacq-cai';
+const NFT_CANISTER=ENV.nft;
 // Closed-loop policy: Official Arcade NFTs (minted on our own nft_canister) cannot be sent
 // anywhere except back into Prize Booth — the backend enforces this for everyone, including
 // admin, so there is deliberately no Withdraw/Send UI for them either. Flip this back to true
 // (and revert the matching nft_canister restriction) if this policy changes at mainnet launch.
 const OFFICIAL_NFT_WITHDRAWAL_ENABLED=false;
-const BACKEND_CANISTER='4fbx2-kt777-77775-aaabq-cai';
+const BACKEND_CANISTER=ENV.backend;
 const VAULT_PRINCIPAL=BACKEND_CANISTER;
 
 // ICRC-7 IDL factory
@@ -11206,7 +11208,7 @@ function renderModList(){
 }
 
 // === GAME UPLOAD TO CHAIN ===
-const GAME_ASSET_CANISTER='4qggx-l3777-77775-aaaca-cai';
+const GAME_ASSET_CANISTER=ENV.games;
 const MAX_GAME_ZIP_BYTES=10*1024*1024; // 10MB
 const CHUNK_SIZE=1900000; // ~1.9MB chunks (under 2MB limit)
 const MAX_THUMB_BYTES=2*1024*1024;
@@ -12641,7 +12643,7 @@ const LEVEL_COLORS = {
 const ADMIN_PURPLE = '#6b00b3'; // Fluorescent dark purple for admin
 const DEV_SLIME_GREEN = '#39ff14'; // Neon slime green for dev badge holders
 const ARTIST_NEON_PINK = '#ff44cc'; // Neon pink for artist badge holders
-const ADMIN_PRINCIPALS = ['fvuhj-qdha4-tu5gc-4hvim-yaxae-g5grp-xjiz3-u5rpo-5cniw-gpolf-eqe'];
+const ADMIN_PRINCIPALS = ENV.admins;
 function getLevelColor(level, isAdminUser, badgeTypes){
   if(isAdminUser) return ADMIN_PURPLE;
   // Badge holders get special colors that override level colors

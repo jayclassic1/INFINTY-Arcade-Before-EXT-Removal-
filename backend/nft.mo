@@ -81,8 +81,9 @@ persistent actor NftCanister {
   };
 
   func isAdmin(p : Principal) : Bool {
+    if (Principal.isAnonymous(p)) return false;
     for (a in admins.vals()) { if (Principal.equal(a, p)) return true };
-    false
+    Principal.isController(p) // the deploying identity is always admin (it can replace the code anyway)
   };
 
   func isOperator(p : Principal) : Bool {

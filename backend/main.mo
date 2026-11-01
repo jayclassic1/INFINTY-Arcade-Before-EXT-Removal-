@@ -536,6 +536,9 @@ persistent actor ArcadeBackend {
   // never removed, plus a third (fb6so-...) not attributable to the project owner.
   // ADMINS is now empty; sole admin authority is JAY_PRINCIPAL below.
   transient let ADMINS : [Principal] = [];
+  // Admins added at run time (e.g. the mainnet Internet Identity principal, which differs from
+  // the local one because II principals are derived per website origin). Survives upgrades.
+  stable var extraAdmins : [Principal] = [];
 
   // Sole admin principal (Infinity-Arcade-Identity, set 2026-08-15)
   transient let JAY_PRINCIPAL : Principal = Principal.fromText("fvuhj-qdha4-tu5gc-4hvim-yaxae-g5grp-xjiz3-u5rpo-5cniw-gpolf-eqe");
@@ -588,12 +591,14 @@ persistent actor ArcadeBackend {
   // account (see getTreasuryLaneSnapshot). Also matches the default AccountIdentifier for
   // pifyq-raaaa-aaaab-agrqq-cai from when this was additionally used for EXT bearer
   // verification, before EXT NFT standard support was removed.
-  transient let SELF_ACCOUNT_ID : Text = "2b239054e41a561e39350c1e86fa53f97ba4acf8b40600574ea965ac11164ebb";
+  // Intentionally blank: it was a precomputed string for an old canister. The website derives the
+  // real address from this canister's principal (getTreasuryLaneSnapshot.owner + subaccount).
+  transient let SELF_ACCOUNT_ID : Text = "";
 
   // Operating Treasury lane: backend-owned subaccount derived from the literal
   // "operating-treasury" using the same length-prefixed lane convention as the frontend.
   // Account id is precomputed from pifyq-raaaa-aaaab-agrqq-cai + this subaccount.
-  transient let OPERATING_TREASURY_ACCOUNT_ID : Text = "494ce8a2ea444907ba9e6191e747b7eb35e54f4b27a77796ed3aba10dbded490";
+  transient let OPERATING_TREASURY_ACCOUNT_ID : Text = ""; // same: derived by the website
   transient let OPERATING_TREASURY_SUBACCOUNT : Blob = Blob.fromArray([
     18, 111, 112, 101, 114, 97, 116, 105,
     110, 103, 45, 116, 114, 101, 97, 115,
@@ -1183,10 +1188,38 @@ persistent actor ArcadeBackend {
   };
 
   func isAdmin(caller : Principal) : Bool {
+    if (Principal.isAnonymous(caller)) return false;
     for (a in ADMINS.vals()) {
       if (Principal.equal(caller, a)) return true;
     };
-    Principal.equal(caller, JAY_PRINCIPAL);
+    for (a in extraAdmins.vals()) {
+      if (Principal.equal(caller, a)) return true;
+    };
+    // The canister controller (the `icp identity` that deploys) is always admin: it can already
+    // replace the code, so this grants nothing new, and it lets setup run from the terminal.
+    Principal.equal(caller, JAY_PRINCIPAL) or Principal.isController(caller);
+  };
+
+  /// Admin: add another admin principal (e.g. your mainnet Internet Identity).
+  public shared(msg) func adminAddAdmin(p : Principal) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    if (Principal.isAnonymous(p)) return #err("Cannot add the anonymous principal");
+    if (isAdmin(p)) return #ok("Already an admin");
+    extraAdmins := Array.append<Principal>(extraAdmins, [p]);
+    #ok("Admin added: " # Principal.toText(p))
+  };
+
+  /// Admin: remove a run-time admin (the built-in admin and the controller cannot be removed here).
+  public shared(msg) func adminRemoveAdmin(p : Principal) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    let before = extraAdmins.size();
+    extraAdmins := Array.filter<Principal>(extraAdmins, func(a) { not Principal.equal(a, p) });
+    if (extraAdmins.size() == before) return #err("Not a run-time admin");
+    #ok("Admin removed: " # Principal.toText(p))
+  };
+
+  public query func getAdmins() : async [Principal] {
+    Array.append<Principal>(Array.append<Principal>(ADMINS, [JAY_PRINCIPAL]), extraAdmins)
   };
 
 
