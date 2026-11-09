@@ -3494,6 +3494,41 @@ persistent actor ArcadeBackend {
     #ok(id);
   };
 
+  // Per-NFT ticket prices for unminted official collections: (collectionId, one price per image).
+  stable var officialCollectionPrices : [(Text, [Nat])] = [];
+  func collectionPricesOf(collectionId : Text) : [Nat] {
+    for ((id, p) in officialCollectionPrices.vals()) { if (id == collectionId) return p };
+    []
+  };
+  func putCollectionPrices(collectionId : Text, prices : [Nat]) {
+    let rest = Array.filter<(Text, [Nat])>(officialCollectionPrices, func((id, _)) { id != collectionId });
+    officialCollectionPrices := if (prices.size() == 0) rest else Array.append<(Text, [Nat])>(rest, [(collectionId, prices)]);
+  };
+
+  /// Admin: set a ticket price for every NFT in an unminted official collection (image order).
+  /// Pass an empty array to go back to the collection's single price.
+  public shared(msg) func adminSetCollectionPrices(collectionId : Text, prices : [Nat]) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    hydrateRuntimeStateIfNeeded();
+    switch (officialCollections.get(collectionId)) {
+      case null { #err("Collection not found") };
+      case (?collection) {
+        if (collection.nftIds.size() > 0) return #err("Collection already minted; prices are fixed");
+        if (prices.size() != 0 and prices.size() != collection.imageUrls.size()) {
+          return #err("Need exactly " # Nat.toText(collection.imageUrls.size()) # " prices (one per image), got " # Nat.toText(prices.size()));
+        };
+        for (p in prices.vals()) {
+          if (p < 1) return #err("Every price must be at least 1 ticket");
+          if (p > 1_000_000) return #err("A price is too high");
+        };
+        putCollectionPrices(collectionId, prices);
+        #ok(if (prices.size() == 0) "Per-NFT prices cleared" else "Prices set for " # Nat.toText(prices.size()) # " NFTs")
+      };
+    };
+  };
+
+  public query func getCollectionPrices(collectionId : Text) : async [Nat] { collectionPricesOf(collectionId) };
+
   /// Admin: mint each image in an official collection into internal arcade listings.
   public shared(msg) func adminMintCollection(collectionId : Text) : async Result.Result<Text, Text> {
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
@@ -3527,16 +3562,18 @@ persistent actor ArcadeBackend {
         if (realTokenIds.size() != collection.imageUrls.size()) return #err("Mint returned unexpected token count");
         let mintedIds = Buffer.Buffer<Nat>(collection.imageUrls.size());
         var mintedCount : Nat = 0;
+        let perNftPrices = collectionPricesOf(collection.id);
         for (imageUrl in collection.imageUrls.vals()) {
           let listingId = genListingId("official");
           let realTokenId = realTokenIds[mintedCount];
+          let nftPrice : Nat = if (perNftPrices.size() == collection.imageUrls.size()) perNftPrices[mintedCount] else collection.ticketCost;
           let listing : NftListing = {
             id = listingId;
             listingType = "mint";
             name = collection.name # " #" # Nat.toText(realTokenId);
             description = collection.description;
             rarity = "official";
-            ticketCost = collection.ticketCost;
+            ticketCost = nftPrice;
             imageUrl = imageUrl;
             creator = msg.caller;
             tier = "open";

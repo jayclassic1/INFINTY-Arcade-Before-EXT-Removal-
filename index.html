@@ -4195,6 +4195,34 @@ async function refreshWalletBalance(){
   update();
 }
 
+// ---- login expiry -------------------------------------------------------------------------
+async function sessionStillValid(){
+  if(!S.connected||!authClient) return true;
+  try{ return await authClient.isAuthenticated(); }catch(_e){ return true; }
+}
+let _sessionExpiredShown=false;
+async function handleSessionExpired(){
+  if(_sessionExpiredShown) return;
+  _sessionExpiredShown=true;
+  try{ await disconnectWallet(); }catch(_e){}
+  try{ arcadeAlert('Session expired','Your login has expired (sessions last 24 hours). Please connect again to continue.'); }catch(_e){}
+  setTimeout(()=>{_sessionExpiredShown=false;},8000);
+}
+// Call before any signed call. Throws (after disconnecting) when the login has expired.
+async function ensureSessionFresh(){
+  if(S.connected && !(await sessionStillValid())){
+    await handleSessionExpired();
+    throw new Error('Session expired. Please connect again.');
+  }
+}
+async function signedAgent(){
+  await ensureSessionFresh();
+  const identity=authClient?authClient.getIdentity():S.identity;
+  return new HttpAgent({host:icpHost(),identity});
+}
+setInterval(()=>{ if(S.connected) sessionStillValid().then(ok=>{ if(!ok) handleSessionExpired(); }); },30000);
+function isSessionExpiredError(e){ return /delegation has expired|Session expired/i.test(getSafeErrorText(e)); }
+
 async function disconnectWallet(){
   try{ if(authClient) await authClient.logout(); }catch(_e){}
   S.connected=false;
@@ -6404,7 +6432,7 @@ function icrc7TransferIdl({IDL}){
 }
 async function getAuthenticatedIcrc7TransferActor(canisterId){
   if(!authClient) throw new Error('Not connected via Internet Identity');
-  const agent=new HttpAgent({host:icpHost(),identity:authClient.getIdentity()});
+  const agent=await signedAgent();
   await fetchRootKeyIfLocal(agent);
   return Actor.createActor(icrc7TransferIdl,{agent,canisterId});
 }
@@ -6667,6 +6695,8 @@ function backendIdl({IDL}){
     adminMintCollection:IDL.Func([IDL.Text],[Result],[]),
     
     adminDeleteCollection:IDL.Func([IDL.Text],[Result],[]),
+    adminSetCollectionPrices:IDL.Func([IDL.Text,IDL.Vec(IDL.Nat)],[Result],[]),
+    getCollectionPrices:IDL.Func([IDL.Text],[IDL.Vec(IDL.Nat)],['query']),
     getOfficialCollections:IDL.Func([],[IDL.Vec(IDL.Record({id:IDL.Text,name:IDL.Text,description:IDL.Text,creator:IDL.Principal,imageUrls:IDL.Vec(IDL.Text),nftIds:IDL.Vec(IDL.Nat),ticketCost:IDL.Nat,totalSupply:IDL.Nat,abilities:IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text)),createdAt:IDL.Int}))],['query']),
     getOfficialCollection:IDL.Func([IDL.Text],[IDL.Opt(IDL.Record({id:IDL.Text,name:IDL.Text,description:IDL.Text,creator:IDL.Principal,imageUrls:IDL.Vec(IDL.Text),nftIds:IDL.Vec(IDL.Nat),ticketCost:IDL.Nat,totalSupply:IDL.Nat,abilities:IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text)),createdAt:IDL.Int}))],['query']),
     getNftAbilities:IDL.Func([IDL.Nat],[IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))],['query']),
@@ -6890,6 +6920,7 @@ const TREASURY_BACKEND_PENDING_COPY='Treasury backend slice not installed yet. D
 const COMMON_OPERATING_WITHDRAW_ACCOUNT_ID='4124447f786d4f994a51581bde316bd383a634f92e60df6c9b7453db16ec4206';
 async function getBackendActor(useIdentity=false){
   if(backendActor && !useIdentity) return backendActor;
+  if(useIdentity) await ensureSessionFresh();
   const agent=useIdentity && authClient
     ? new HttpAgent({host:icpHost(),identity:authClient.getIdentity()})
     : new HttpAgent({host:icpHost()});
@@ -8380,7 +8411,7 @@ async function withdrawNft(tokenId){
 
   try{
     // Create NFT actor with user's II identity for transfer auth
-    const agent=new HttpAgent({host:icpHost(),identity:authClient.getIdentity()});
+    const agent=await signedAgent();
     await fetchRootKeyIfLocal(agent);
     const transferIdl=({IDL})=>{
       const Account=IDL.Record({owner:IDL.Principal,subaccount:IDL.Opt(IDL.Vec(IDL.Nat8))});
@@ -8522,6 +8553,7 @@ function isAssetCanisterPermissionError(e){
 }
 function safeAssetCanisterErrorMessage(e,action){
   const raw=getSafeErrorText(e);
+  if(isSessionExpiredError(e)) return 'Your login has expired. Please disconnect, connect again, and retry.';
   const label=action||'asset canister operation';
   if(isAssetCanisterPermissionError(e)){
     return 'This wallet is connected, but it does not have asset upload permission for the game asset canister ('+GAME_ASSET_CANISTER+'). Ask an admin/controller to grant Prepare/Commit permission, or use the configured deploy identity.';
@@ -9925,7 +9957,7 @@ function trackSpend(gameId,tokens){
 const PRINCIPAL_ACCT_FEE_E8S=10000n;
 let _principalAcctBalE8s=0n;
 async function principalLedgerActor(){
-  const agent=new HttpAgent({host:icpHost(),identity:S.identity});
+  const agent=await signedAgent();
   await fetchRootKeyIfLocal(agent);
   return Actor.createActor(ledgerIdl,{agent,canisterId:LEDGER_CANISTER_ID});
 }
@@ -11241,7 +11273,7 @@ function assetIdlFactory({IDL:I}){
 }
 
 async function getGameAssetActor(){
-  const agent=new HttpAgent({host:icpHost(),identity:S.identity});
+  const agent=await signedAgent();
   await fetchRootKeyIfLocal(agent);
   return Actor.createActor(assetIdlFactory,{agent,canisterId:GAME_ASSET_CANISTER});
 }
@@ -11463,7 +11495,7 @@ async function uploadGameToChain(){
     status.innerHTML='<span style="color:#ffd700">Connecting to asset canister...</span>';
     bar.style.width='15%';
 
-    const agent=new HttpAgent({host:icpHost(),identity:S.identity});
+    const agent=await signedAgent();
     await fetchRootKeyIfLocal(agent);
 
     // Asset canister IDL - matches IC certified asset canister interface
@@ -12071,7 +12103,7 @@ async function deleteAllGameFilesFromAssetCanister(assetActor,gameId){
 /// Builds a ready-to-use asset-canister actor with the admin's own connected identity, using the
 /// same minimal IDL subset deleteGameFromChain already relies on.
 async function getAdminAssetActor(){
-  const agent=new HttpAgent({host:icpHost(),identity:S.identity});
+  const agent=await signedAgent();
   await fetchRootKeyIfLocal(agent);
   const assetIdl=({IDL:I})=>{
     return I.Service({
@@ -12788,7 +12820,7 @@ async function adminCreateCollection(){
       status.textContent='Connecting to asset canister...';
       bar.style.width='10%';
 
-      const agent=new HttpAgent({host:icpHost(),identity:S.identity});
+      const agent=await signedAgent();
       await fetchRootKeyIfLocal(agent);
       const assetIdl=({IDL:I})=>{
         return I.Service({
@@ -12927,8 +12959,14 @@ async function adminLoadCollections(){
     }
     const cols=await be.getOfficialCollections();
     if(cols.length===0){container.innerHTML='<div style="color:#3d6090">No collections yet</div>';return;}
+    const priceMap={};
+    await Promise.all(cols.filter(c=>c.nftIds.length===0).map(async c=>{ try{ priceMap[c.id]=(await be.getCollectionPrices(c.id)).map(Number); }catch(_e){ priceMap[c.id]=[]; } }));
     container.innerHTML=cols.map(c=>{
       const minted=c.nftIds.length>0;
+      const prices=priceMap[c.id]||[];
+      const priceText=prices.length?`${Math.min(...prices)}–${Math.max(...prices)} tickets (per-NFT)`:`${Number(c.ticketCost)} tickets each`;
+      const priceBtn=minted?'':
+        `<button class='btn' onclick='openCollectionPricing("${c.id}")' style='font-size:.6rem;padding:2px 8px;border-color:#00aaff;color:#00aaff'>${prices.length?'Edit Prices':'Set Prices'}</button>`;
       const mintBtn=minted?
         `<span style="color:#39ff14">Minted (${c.nftIds.length} NFTs)</span>`:
         `<button class='btn' onclick='adminMintCollection("${c.id}")' style='font-size:.6rem;padding:2px 8px;border-color:#ffd700;color:#ffd700'>Mint All</button>`;
@@ -12941,9 +12979,9 @@ async function adminLoadCollections(){
       return `<div style='background:rgba(0,0,0,.3);border:1px solid rgba(57,255,20,.15);border-radius:8px;padding:8px;margin-bottom:6px'>
         <div style='display:flex;justify-content:space-between;align-items:center'>
           <div><b style='color:#39ff14'>${escHtml(c.name)}</b> <span style='color:#3d6090'>(${c.id})</span></div>
-          <div style='display:flex;gap:4px'>${mintBtn} ${manageBtn} ${deleteBtn}</div>
+          <div style='display:flex;gap:4px'>${priceBtn} ${mintBtn} ${manageBtn} ${deleteBtn}</div>
         </div>
-        <div style='color:#5a7a9a;font-size:.6rem;margin-top:2px'>${c.totalSupply} NFTs | ${Number(c.ticketCost)} tickets each | ${c.description||'No description'}</div>
+        <div style='color:#5a7a9a;font-size:.6rem;margin-top:2px'>${c.totalSupply} NFTs | ${priceText} | ${escHtml(c.description||'No description')}</div>
         ${abilities}
       </div>`;
     }).join('');
@@ -12960,6 +12998,72 @@ const ABILITY_LIST=[
   {key:'neon-name',label:'Neon name',valueType:'color'},{key:'collector-title',label:'Collector title',valueType:'text'},
   {key:'forum-thread-plus',label:'+1 forum thread / day'},{key:'proposal-plus',label:'+1 proposal / day'}
 ];
+
+// ─── Per-NFT prices before minting ───
+async function openCollectionPricing(colId){
+  const be=await getBackendActor();
+  const cols=await be.getOfficialCollections();
+  const col=cols.find(c=>c.id===colId);
+  if(!col){arcadeAlert('Error','Collection not found');return;}
+  if(col.nftIds.length>0){arcadeAlert('Already minted','Prices are fixed once a collection is minted.');return;}
+  let existing=[]; try{ existing=(await be.getCollectionPrices(colId)).map(Number); }catch(_e){}
+  const base=Number(col.ticketCost)||25;
+  const cells=col.imageUrls.map((u,i)=>{
+    const v=existing.length===col.imageUrls.length?existing[i]:base;
+    const fname=String(u).split('/').pop();
+    return `<div style='background:rgba(0,0,0,.35);border:1px solid rgba(0,170,255,.2);border-radius:8px;padding:6px;text-align:center'>
+      <img src='${safeUrl(u)}' loading='lazy' style='width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;background:#0a0f1e' onerror="this.style.opacity='.25'">
+      <div style='font-size:.55rem;color:#5a7a9a;margin:4px 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis' title='${escHtml(fname)}'>#${i+1} · ${escHtml(fname)}</div>
+      <input type='number' min='1' max='1000000' value='${v}' data-price-idx='${i}' style='width:100%;padding:4px;font-size:.7rem;text-align:center;background:#0a0f1e;border:1px solid rgba(0,170,255,.35);border-radius:6px;color:#ffd700;font-weight:700'>
+    </div>`;
+  }).join('');
+  const html=`<div id='colPricingModal' style='position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:9999;overflow-y:auto;padding:20px' onclick='if(event.target===this)this.remove()'>
+  <div style='max-width:1000px;margin:0 auto'>
+    <div style='display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px'>
+      <div><div style='color:#00aaff;font-weight:900;letter-spacing:2px;font-size:.8rem'>SET TICKET PRICES</div><b style='color:#39ff14'>${escHtml(col.name)}</b> <span style='color:#5a7a9a;font-size:.7rem'>· ${col.imageUrls.length} NFTs · prices are locked at mint</span></div>
+      <button class='btn' onclick='document.getElementById("colPricingModal").remove()' style='font-size:.65rem'>Close</button>
+    </div>
+    <div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:rgba(0,170,255,.06);border:1px solid rgba(0,170,255,.2);border-radius:8px;padding:8px;margin-bottom:12px'>
+      <span style='font-size:.7rem;color:#8aa6d8'>Fill all with</span>
+      <input id='colPriceFill' type='number' min='1' value='${base}' style='width:90px;padding:4px;font-size:.7rem;text-align:center;background:#0a0f1e;border:1px solid rgba(0,170,255,.35);border-radius:6px;color:#ffd700;font-weight:700'>
+      <button class='btn' onclick='colPricingFillAll()' style='font-size:.65rem'>Apply</button>
+      <span style='font-size:.65rem;color:#5a7a9a'>then change the special ones</span>
+      <span style='flex:1'></span>
+      <span id='colPricingStatus' style='font-size:.65rem;color:#8aa6d8'></span>
+      <button class='btn' onclick='colPricingClear("${col.id}")' style='font-size:.65rem;border-color:#ef4444;color:#ef4444'>Use one price for all</button>
+      <button class='btn' onclick='colPricingSave("${col.id}",${col.imageUrls.length})' style='font-size:.65rem;border-color:#39ff14;color:#39ff14;font-weight:800'>Save Prices</button>
+    </div>
+    <div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px'>${cells}</div>
+  </div></div>`;
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+function colPricingFillAll(){
+  const v=parseInt(document.getElementById('colPriceFill').value);
+  if(!(v>=1)) return;
+  document.querySelectorAll('#colPricingModal input[data-price-idx]').forEach(i=>{i.value=v;});
+}
+async function colPricingSave(colId,count){
+  const st=document.getElementById('colPricingStatus');
+  const inputs=[...document.querySelectorAll('#colPricingModal input[data-price-idx]')].sort((a,b)=>Number(a.dataset.priceIdx)-Number(b.dataset.priceIdx));
+  const prices=inputs.map(i=>parseInt(i.value));
+  if(prices.length!==count||prices.some(p=>!(p>=1))){ st.textContent='Every NFT needs a price of at least 1 ticket.'; st.style.color='#ef4444'; return; }
+  st.textContent='Saving…'; st.style.color='#8aa6d8';
+  try{
+    const be=await getBackendActor(true);
+    const r=await be.adminSetCollectionPrices(colId,prices.map(p=>BigInt(p)));
+    if(r.ok!==undefined){ st.textContent=r.ok; st.style.color='#39ff14'; adminLoadCollections(); }
+    else { st.textContent=safeUserErrorMessage(r.err||'Unknown','admin action'); st.style.color='#ef4444'; }
+  }catch(e){ st.textContent=safeUserErrorMessage(e,'admin action'); st.style.color='#ef4444'; }
+}
+async function colPricingClear(colId){
+  const st=document.getElementById('colPricingStatus');
+  try{
+    const be=await getBackendActor(true);
+    const r=await be.adminSetCollectionPrices(colId,[]);
+    if(r.ok!==undefined){ st.textContent=r.ok+' — the collection price applies to every NFT.'; st.style.color='#39ff14'; adminLoadCollections(); }
+    else { st.textContent=safeUserErrorMessage(r.err||'Unknown','admin action'); st.style.color='#ef4444'; }
+  }catch(e){ st.textContent=safeUserErrorMessage(e,'admin action'); st.style.color='#ef4444'; }
+}
 
 async function openCollectionManager(colId){
   window._colMgrColId=colId;
@@ -16895,7 +16999,7 @@ function closeNftDetail(){
 
   ['showProfileModal',showProfileModal],['pickAvatarNft',pickAvatarNft],['saveProfile',saveProfile],['closeProfileModal',closeProfileModal],
   ['filterPlayers',filterPlayers],['openVeteranPortal',openVeteranPortal],['openForumSection',openForumSection],['closeForumSection',closeForumSection],['buyVpNft',buyVpNft],['openThreadDetail',openThreadDetail],['closeThreadDetail',closeThreadDetail],['scanForumUpdates',scanForumUpdates],['renderProfileView',renderProfileView],['openProfileEdit',openProfileEdit],['closeProfileEdit',closeProfileEdit],['saveProfileEdit',saveProfileEdit],['pickEditAvatar',pickEditAvatar],['submitChosenName',submitChosenName],['removeProfilePfp',removeProfilePfp],['closeShowroomEdit',closeShowroomEdit],['saveShowroomEdit',saveShowroomEdit],['toggleShowroomNft',toggleShowroomNft],['viewPublicProfile',viewPublicProfile],['registerPublicPresence',registerPublicPresence],['adminUnban',adminUnban],['renderBanList',renderBanList],['showBanUserModal',showBanUserModal],['showNewPostForm',showNewPostForm],['hideNewPostForm',hideNewPostForm],['submitForumPost',submitForumPost],['submitReply',submitReply],['toggleNestedReplies',toggleNestedReplies],['toggleNestedReplyBox',toggleNestedReplyBox],['deletePost',deletePost],['deleteReply',deleteReply],['adminAddMod',adminAddMod],['adminRemoveMod',adminRemoveMod],['renderModList',renderModList],['adminAddBoost',adminAddBoost],['renderBoostList',renderBoostList],['quickBoostGame',quickBoostGame],['openDaoView',openDaoView],['closeDaoView',closeDaoView],['showDaoRestricted',showDaoRestricted],['openDaoSection',openDaoSection],['closeDaoSection',closeDaoSection],['renderDaoPage',renderDaoPage],['openDaoProposals',openDaoProposals],['closeDaoProposals',closeDaoProposals],['renderDaoThreadList',renderDaoThreadList],['closeDaoThreadDetail',closeDaoThreadDetail],['showDaoNewThread',showDaoNewThread],['hideDaoNewThread',hideDaoNewThread],['submitDaoThread',submitDaoThread],['openDaoThread',openDaoThread],['submitDaoReply',submitDaoReply],['deleteDaoPost',deleteDaoPost],['deleteDaoReply',deleteDaoReply],['renderDaoMain',renderDaoMain],['rescanEditProfileNfts',rescanEditProfileNfts],['showCreateProposal',showCreateProposal],['hideCreateProposal',hideCreateProposal],['submitProposal',submitProposal],['castVote',castVote],['viewProposal',viewProposal],['submitProposalReply',submitProposalReply],['deleteProposal',deleteProposal],['saveAdminResponse',saveAdminResponse],['removeAdminResponse',removeAdminResponse],['previewProposalImages',previewProposalImages],['removeProposalImage',removeProposalImage],['viewProposalImage',viewProposalImage],
-  ['updateProfileDisplay',updateProfileDisplay],['uploadGamePreview',uploadGamePreview],['uploadGameToChain',uploadGameToChain],['setUploadGameTier',setUploadGameTier],['updateUploadGameActionBtnVisibility',updateUploadGameActionBtnVisibility],['updateShowSubMonetizationUi',updateShowSubMonetizationUi],['adminSetPendingGamePricing',adminSetPendingGamePricing],['submitGameNavigate',submitGameNavigate],['refreshAdminPendingSubmissionSelect',refreshAdminPendingSubmissionSelect],['loadAdminPendingSubmissionTarget',loadAdminPendingSubmissionTarget],['useAdminPendingThumbnail',useAdminPendingThumbnail],['swapAdminPendingThumbnail',swapAdminPendingThumbnail],['handleAdminPendingThumbnailSwap',handleAdminPendingThumbnailSwap],['clearAdminPendingSubmissionPicker',clearAdminPendingSubmissionPicker],['refreshAdminGameUpdateSelect',refreshAdminGameUpdateSelect],['loadAdminGameUpdateTarget',loadAdminGameUpdateTarget],['selectAdminGameUpdateTarget',selectAdminGameUpdateTarget],['adminSuspendGame',adminSuspendGame],['adminRelistGame',adminRelistGame],['adminDeleteGamePermanently',adminDeleteGamePermanently],['loadTreasuryInfo',loadTreasuryInfo],['fillMaxTreasuryWithdraw',fillMaxTreasuryWithdraw],['adminWithdrawTreasury',adminWithdrawTreasury],['copyCommonOperatingWithdrawAddress',copyCommonOperatingWithdrawAddress],['loadDaoTreasuryAdmin',loadDaoTreasuryAdmin],['adminBurnDaoTokensFn',adminBurnDaoTokensFn],['adminBurnDaoTicketsFn',adminBurnDaoTicketsFn],['adminTransferDaoTokensFn',adminTransferDaoTokensFn],['adminTransferDaoTicketsFn',adminTransferDaoTicketsFn],['adminAwardDevBadge',adminAwardDevBadge],['adminAwardArtistBadge',adminAwardArtistBadge],['adminRevokeBadge',adminRevokeBadge],['checkJackpotNotifications',checkJackpotNotifications],['showJackpotPopup',showJackpotPopup],['openCollectionBrowser',openCollectionBrowser],['openCollectionManager',openCollectionManager],['adminToggleNftGrail',adminToggleNftGrail],['adminToggleSpotlight',adminToggleSpotlight],['adminEditNftPrice',adminEditNftPrice],['adminEditNftAbility',adminEditNftAbility],['adminClearNftAbility',adminClearNftAbility],['openAbilityPicker',openAbilityPicker],['applyAbilityToTokens',applyAbilityToTokens],['clearAbilityFromTokens',clearAbilityFromTokens],['colMgrSelectAll',colMgrSelectAll],['colMgrDeselectAll',colMgrDeselectAll],['colMgrAssignSelected',colMgrAssignSelected],['openDisabledAbilities',openDisabledAbilities],['toggleAbilityState',toggleAbilityState],['adminCreateCollection',adminCreateCollection],['adminLoadCollections',adminLoadCollections],['adminMintCollection',adminMintCollection],['adminDeleteCol',adminDeleteCol],
+  ['updateProfileDisplay',updateProfileDisplay],['uploadGamePreview',uploadGamePreview],['uploadGameToChain',uploadGameToChain],['setUploadGameTier',setUploadGameTier],['updateUploadGameActionBtnVisibility',updateUploadGameActionBtnVisibility],['updateShowSubMonetizationUi',updateShowSubMonetizationUi],['adminSetPendingGamePricing',adminSetPendingGamePricing],['submitGameNavigate',submitGameNavigate],['refreshAdminPendingSubmissionSelect',refreshAdminPendingSubmissionSelect],['loadAdminPendingSubmissionTarget',loadAdminPendingSubmissionTarget],['useAdminPendingThumbnail',useAdminPendingThumbnail],['swapAdminPendingThumbnail',swapAdminPendingThumbnail],['handleAdminPendingThumbnailSwap',handleAdminPendingThumbnailSwap],['clearAdminPendingSubmissionPicker',clearAdminPendingSubmissionPicker],['refreshAdminGameUpdateSelect',refreshAdminGameUpdateSelect],['loadAdminGameUpdateTarget',loadAdminGameUpdateTarget],['selectAdminGameUpdateTarget',selectAdminGameUpdateTarget],['adminSuspendGame',adminSuspendGame],['adminRelistGame',adminRelistGame],['adminDeleteGamePermanently',adminDeleteGamePermanently],['loadTreasuryInfo',loadTreasuryInfo],['fillMaxTreasuryWithdraw',fillMaxTreasuryWithdraw],['adminWithdrawTreasury',adminWithdrawTreasury],['copyCommonOperatingWithdrawAddress',copyCommonOperatingWithdrawAddress],['loadDaoTreasuryAdmin',loadDaoTreasuryAdmin],['adminBurnDaoTokensFn',adminBurnDaoTokensFn],['adminBurnDaoTicketsFn',adminBurnDaoTicketsFn],['adminTransferDaoTokensFn',adminTransferDaoTokensFn],['adminTransferDaoTicketsFn',adminTransferDaoTicketsFn],['adminAwardDevBadge',adminAwardDevBadge],['adminAwardArtistBadge',adminAwardArtistBadge],['adminRevokeBadge',adminRevokeBadge],['checkJackpotNotifications',checkJackpotNotifications],['showJackpotPopup',showJackpotPopup],['openCollectionBrowser',openCollectionBrowser],['openCollectionManager',openCollectionManager],['openCollectionPricing',openCollectionPricing],['colPricingFillAll',colPricingFillAll],['colPricingSave',colPricingSave],['colPricingClear',colPricingClear],['adminToggleNftGrail',adminToggleNftGrail],['adminToggleSpotlight',adminToggleSpotlight],['adminEditNftPrice',adminEditNftPrice],['adminEditNftAbility',adminEditNftAbility],['adminClearNftAbility',adminClearNftAbility],['openAbilityPicker',openAbilityPicker],['applyAbilityToTokens',applyAbilityToTokens],['clearAbilityFromTokens',clearAbilityFromTokens],['colMgrSelectAll',colMgrSelectAll],['colMgrDeselectAll',colMgrDeselectAll],['colMgrAssignSelected',colMgrAssignSelected],['openDisabledAbilities',openDisabledAbilities],['toggleAbilityState',toggleAbilityState],['adminCreateCollection',adminCreateCollection],['adminLoadCollections',adminLoadCollections],['adminMintCollection',adminMintCollection],['adminDeleteCol',adminDeleteCol],
   ['runTreasuryScan',runTreasuryScan],
   ['closeNftDetail',closeNftDetail],
   ['submitExistingNft',submitExistingNft],['switchNftTab',switchNftTab],['resetExistingNftFlow',resetExistingNftFlow],['renderMyNftSubmissions',renderMyNftSubmissions],['showUserNftDetail',showUserNftDetail],
