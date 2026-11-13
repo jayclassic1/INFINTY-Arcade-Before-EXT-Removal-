@@ -6489,6 +6489,34 @@ persistent actor ArcadeBackend {
     };
   };
 
+  /// Admin: move a game between the Showroom ("showroom") and The Back ("backroom").
+  public shared(msg) func adminSetGameTier(gameId : Text, tier : Text) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Not authorized");
+    if (tier != "showroom" and tier != "backroom") return #err("Tier must be showroom or backroom");
+    hydrateRuntimeStateIfNeeded();
+    switch (gameSubmissions.get(gameId)) {
+      case null { #err("Game not found") };
+      case (?game) {
+        if (game.gameTier == "jays-picks") return #err("Remove it from DAO Favourites first");
+        if (game.gameTier == tier) return #ok("Already there");
+        let updated : GameSubmission = {
+          id = game.id; name = game.name; developer = game.developer;
+          url = game.url; thumbnailUrl = game.thumbnailUrl; description = game.description;
+          compatibility = game.compatibility; creator = game.creator;
+          gameTier = tier; status = game.status;
+          feePaid = game.feePaid; showroomFeePaid = game.showroomFeePaid;
+          txId = game.txId; createdAt = game.createdAt;
+        };
+        gameSubmissions.put(gameId, updated);
+        if (tier == "backroom") {
+          gameMonetization.put(gameId, (false, false)); // The Back: free, no Tickets
+          if (gameCategories.get(gameId) == ?"ticket-games") gameCategories.delete(gameId);
+        };
+        #ok(if (tier == "backroom") "Moved to The Back" else "Moved to the Showroom")
+      };
+    };
+  };
+
   /// Admin: relist a previously-suspended game back to live, at no cost - the game was already
   /// paid for once, this is purely a visibility toggle back on. Only allowed from "suspended" so
   /// this can't accidentally resurrect a "removed" or already-live game via the wrong button.

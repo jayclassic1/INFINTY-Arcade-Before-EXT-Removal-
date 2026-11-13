@@ -2249,11 +2249,21 @@ window.addEventListener('message', (e) => {
 <div>
 <div style='font-size:.6rem;color:#5a7baa;letter-spacing:1px;margin-bottom:2px'>REVENUE RECIPIENT PRINCIPAL</div>
 <input type='text' id='uploadGamePrincipal' placeholder='' style='width:100%;padding:6px 10px;background:rgba(0,0,0,.3);border:1px solid rgba(34,197,94,.2);border-radius:6px;color:#fff;font-size:.75rem;box-sizing:border-box' autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'/>
+<div style='font-size:.6rem;color:#6fa4c8;margin-top:4px'>Earnings accrue to this account. The creator chooses where their ICP goes from their own Earnings page (manual claim or auto-payout).</div>
 </div>
-<div>
-<div style='font-size:.6rem;color:#5a7baa;letter-spacing:1px;margin-bottom:2px'>ICP CLAIM ADDRESS</div>
-<input type='text' id='uploadGamePayoutAddress' placeholder='' style='width:100%;padding:6px 10px;background:rgba(0,0,0,.3);border:1px solid rgba(34,197,94,.2);border-radius:6px;color:#fff;font-size:.75rem;box-sizing:border-box' autocomplete='off' autocorrect='off' autocapitalize='off' spellcheck='false'/>
-<div style='font-size:.6rem;color:#6fa4c8;margin-top:4px'>UI-only for now. Current backend still registers the principal field.</div>
+<div id='uploadGameTypeCol'>
+<div style='font-size:.6rem;color:#5a7baa;letter-spacing:1px;margin-bottom:2px'>GAME TYPE (SHOWROOM)</div>
+<select id='uploadGameType' onchange='this.dataset.dirty="1";uploadGameTypeChanged()' style='width:100%;padding:6px 8px;background:rgba(0,0,0,.4);border:1px solid rgba(255,215,0,.35);border-radius:6px;color:#fff;font-size:.7rem;box-sizing:border-box'>
+<option value='ticket'>Ticket Game (each run can win Tickets)</option>
+<option value='visit'>Non-ticket (1 Token per visit)</option>
+<option value='purchasable'>Non-ticket + Purchasable</option>
+</select>
+<div id='uploadGamePurchaseRow' style='display:none;margin-top:6px;align-items:center;gap:6px'>
+<span style='font-size:.62rem;color:#8aa6d8'>Purchase price</span>
+<input type='number' id='uploadGamePurchasePrice' min='1' value='50' style='width:90px;padding:4px 8px;background:rgba(0,0,0,.3);border:1px solid rgba(255,215,0,.3);border-radius:6px;color:#ffd700;font-weight:700;font-size:.72rem'/>
+<span style='font-size:.62rem;color:#8aa6d8'>Tokens</span>
+</div>
+<div style='font-size:.6rem;color:#6fa4c8;margin-top:4px'>Ticket games need their payout ladder set after upload (Live Games → Ladder).</div>
 </div>
 </div>
 
@@ -6687,7 +6697,7 @@ function backendIdl({IDL}){
     getPlayerLevels:IDL.Func([IDL.Principal],[IDL.Record({gxp:IDL.Nat,gxpLevel:IDL.Nat,gxpPercentile:IDL.Nat,dvp:IDL.Nat,dvpLevel:IDL.Nat,dvpPercentile:IDL.Nat,lifetimeSpent:IDL.Nat,achievements:IDL.Vec(IDL.Text)})],['query']),
     removeGameSubmission:IDL.Func([IDL.Text],[Result],[]),
     adminSuspendGame:IDL.Func([IDL.Text],[Result],[]),
-    adminSetGameCompatibility:IDL.Func([IDL.Text,IDL.Text],[Result],[]),
+    adminSetGameCompatibility:IDL.Func([IDL.Text,IDL.Text],[Result],[]),adminSetGameTier:IDL.Func([IDL.Text,IDL.Text],[Result],[]),
     adminRelistGame:IDL.Func([IDL.Text],[Result],[]),
     adminDeleteGamePermanently:IDL.Func([IDL.Text],[Result],[]),
     requestGameRemoval:IDL.Func([IDL.Text],[Result],[]),
@@ -9471,23 +9481,94 @@ function renderInlineGameAdminTools(gameId){
       ${gt!=='backroom'?`<button class='btn' onclick='quickBoostGame("${gameId}")' style='font-size:.68rem;padding:5px 8px;border-color:#ff8800;color:#ff8800'>⚡ Boost</button>`:''}
     </div>
     ${(sub.paysTickets!==false&&gt!=='backroom')?`<div id='payoutAdmin_${payoutDomId(gameId)}'>${renderPayoutConfigAdmin(gameId,null)}</div><div id='jackpotAdmin_${payoutDomId(gameId)}'>${renderTicketJackpotAdmin(gameId,null)}</div>`:''}
-    <div style='display:flex;gap:8px;align-items:center;flex-wrap:wrap'>
-      <div style='font-size:.68rem;color:#9fb0d6'>Platform</div>
-      <select onchange='adminSetGamePlatformUi("${gameId}",this.value)' style='font-size:.72rem;padding:4px 6px;background:#0a1428;border:1px solid #3456aa;color:#8bb4ff;border-radius:4px;cursor:pointer'>
-        <option value='desktop' ${(sub.compat||'desktop')==='desktop'?'selected':''}>Desktop only</option>
-        <option value='mobile' ${sub.compat==='mobile'?'selected':''}>Mobile only</option>
-        <option value='both' ${sub.compat==='both'?'selected':''}>Desktop + Mobile</option>
-      </select>
-      <div style='font-size:.68rem;color:#9fb0d6;margin-left:6px'>Category</div>
-      <select onchange='adminSetGameCategoryUi("${gameId}",this.value)' style='font-size:.72rem;padding:4px 6px;background:#0a1428;border:1px solid #3456aa;color:#8bb4ff;border-radius:4px;cursor:pointer'>
-        <option value='' ${!sub.gameCategory?'selected':''}>No Category</option>
-        <option value='ai-made' ${sub.gameCategory==='ai-made'?'selected':''}>AI Made</option>
-        <option value='independent' ${sub.gameCategory==='independent'?'selected':''}>Independent</option>
-        <option value='studio' ${sub.gameCategory==='studio'?'selected':''}>Studio</option>
-        ${gt!=='backroom'?`<option value='ticket-games' ${sub.gameCategory==='ticket-games'?'selected':''}>Ticket Games</option>`:''}
-      </select>
+    ${renderGamePlacementPanel(sub)}
+  </div>`;
+}
+
+function renderGamePlacementPanel(sub){
+  const id=sub.id, gt=sub.gameTier||sub.tier||'backroom', fav=gt==='jays-picks';
+  const sec=gt==='backroom'?'backroom':'showroom';
+  const type=sub.paysTickets?'ticket':(sub.wantsPurchasable?'purchasable':'visit');
+  const cat=sub.gameCategory==='ticket-games'?'':(sub.gameCategory||'');
+  const plat=sub.compat||'desktop';
+  const d=payoutDomId(id);
+  const sel="font-size:.72rem;padding:5px 6px;background:#0a1428;border:1px solid #3456aa;color:#cfe0ff;border-radius:6px;cursor:pointer;width:100%";
+  const lab="font-size:.58rem;color:#7f97c4;letter-spacing:1px;margin-bottom:3px;font-weight:700";
+  return `<div id='placement_${d}' data-game='${escHtml(id)}' data-orig='${escHtml(JSON.stringify({sec,type,cat,plat,price:Number(sub.purchasePrice||0)}))}' style='background:rgba(52,86,170,.08);border:1px solid rgba(52,86,170,.4);border-radius:10px;padding:10px'>
+    <div style='font-size:.62rem;color:#8bb4ff;letter-spacing:2px;font-weight:800;margin-bottom:8px'>PLACEMENT</div>
+    <div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px'>
+      <div><div style='${lab}'>SECTION</div>
+        <select data-k='sec' onchange='gamePlacementChanged("${d}")' ${fav?'disabled title="In DAO Favourites: use Remove from DAO Favourites first"':''} style='${sel}'>
+          <option value='showroom' ${sec==='showroom'?'selected':''}>${fav?'DAO Favourites (Showroom)':'Showroom'}</option>
+          <option value='backroom' ${sec==='backroom'?'selected':''}>The Back (free)</option>
+        </select></div>
+      <div data-type-wrap><div style='${lab}'>TYPE</div>
+        <select data-k='type' onchange='gamePlacementChanged("${d}")' style='${sel}'>
+          <option value='ticket' ${type==='ticket'?'selected':''}>Ticket Game</option>
+          <option value='visit' ${type==='visit'?'selected':''}>Non-ticket (1 Token / visit)</option>
+          <option value='purchasable' ${type==='purchasable'?'selected':''}>Non-ticket + Purchasable</option>
+        </select>
+        <div data-price-wrap style='display:none;margin-top:5px;align-items:center;gap:5px'><input data-k='price' type='number' min='1' value='${Number(sub.purchasePrice||0)||50}' oninput='gamePlacementChanged("${d}")' style='width:80px;padding:3px 6px;background:#0a1428;border:1px solid #3456aa;color:#ffd700;font-weight:700;border-radius:5px;font-size:.7rem'><span style='font-size:.62rem;color:#8aa6d8'>Tokens to buy</span></div></div>
+      <div><div style='${lab}'>CATEGORY</div>
+        <select data-k='cat' onchange='gamePlacementChanged("${d}")' style='${sel}'>
+          <option value='' ${!cat?'selected':''}>No Category</option>
+          <option value='ai-made' ${cat==='ai-made'?'selected':''}>AI Made</option>
+          <option value='independent' ${cat==='independent'?'selected':''}>Independent</option>
+          <option value='studio' ${cat==='studio'?'selected':''}>Studio</option>
+        </select></div>
+      <div><div style='${lab}'>PLATFORM</div>
+        <select data-k='plat' onchange='gamePlacementChanged("${d}")' style='${sel}'>
+          <option value='desktop' ${plat==='desktop'?'selected':''}>Desktop only</option>
+          <option value='mobile' ${plat==='mobile'?'selected':''}>Mobile only</option>
+          <option value='both' ${plat==='both'?'selected':''}>Desktop + Mobile</option>
+        </select></div>
+    </div>
+    <div style='display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap'>
+      <button data-save onclick='saveGamePlacement("${d}")' disabled class='btn' style='font-size:.72rem;padding:6px 18px;border-color:#22c55e;color:#22c55e;font-weight:800;opacity:.45'>Save</button>
+      <span data-status style='font-size:.65rem;color:#8aa6d8'>No changes</span>
     </div>
   </div>`;
+}
+function _placementRead(box){
+  const v=k=>box.querySelector(`[data-k='${k}']`)?.value;
+  return {sec:v('sec'),type:v('type'),cat:v('cat'),plat:v('plat'),price:Math.floor(Number(v('price'))||0)};
+}
+function gamePlacementChanged(d){
+  const box=document.getElementById('placement_'+d); if(!box) return;
+  const cur=_placementRead(box), orig=JSON.parse(box.dataset.orig);
+  const tw=box.querySelector('[data-type-wrap]'); if(tw) tw.style.opacity=cur.sec==='backroom'?'.35':'1';
+  const tsel=box.querySelector("[data-k='type']"); if(tsel) tsel.disabled=cur.sec==='backroom';
+  const pw=box.querySelector('[data-price-wrap]'); if(pw) pw.style.display=(cur.sec!=='backroom'&&cur.type==='purchasable')?'flex':'none';
+  const changed=cur.sec!==orig.sec||cur.cat!==orig.cat||cur.plat!==orig.plat||(cur.sec==='showroom'&&(cur.type!==orig.type||(cur.type==='purchasable'&&cur.price!==orig.price)));
+  const btn=box.querySelector('[data-save]'); const st=box.querySelector('[data-status]');
+  if(btn){ btn.disabled=!changed; btn.style.opacity=changed?'1':'.45'; }
+  if(st){ st.textContent=changed?'Unsaved changes':'No changes'; st.style.color=changed?'#fbbf24':'#8aa6d8'; }
+}
+async function saveGamePlacement(d){
+  const box=document.getElementById('placement_'+d); if(!box) return;
+  const id=box.dataset.game, cur=_placementRead(box), orig=JSON.parse(box.dataset.orig);
+  const btn=box.querySelector('[data-save]'), st=box.querySelector('[data-status]');
+  if(cur.sec==='showroom'&&cur.type==='purchasable'&&!(cur.price>=1)){ st.textContent='Enter a purchase price of at least 1 Token'; st.style.color='#ef4444'; return; }
+  if(cur.sec==='backroom'&&orig.sec!=='backroom'){
+    if(!await arcadeConfirm('Move to The Back?','The Back is free: this game will stop charging Tokens and stop paying Tickets. Any Tickets already in its pool stay in the reserve. Continue?')) return;
+  }
+  btn.disabled=true; btn.style.opacity='.45'; st.textContent='Saving…'; st.style.color='#8aa6d8';
+  const done=[];
+  try{
+    const be=await getBackendActor(true);
+    if(cur.sec!==orig.sec){ const r=await be.adminSetGameTier(id,cur.sec); if(r.err) throw new Error(r.err); done.push(cur.sec==='backroom'?'moved to The Back':'moved to the Showroom'); }
+    if(cur.sec==='showroom'&&(cur.type!==orig.type||cur.sec!==orig.sec||(cur.type==='purchasable'&&cur.price!==orig.price))){ await applyGameType(id,cur.type,cur.price); done.push('type set'); }
+    if(cur.cat!==orig.cat){ const r=await be.setGameCategory(id,cur.cat); if(r.err) throw new Error(r.err); done.push('category set'); }
+    if(cur.plat!==orig.plat){ const r=await be.adminSetGameCompatibility(id,cur.plat); if(r.err) throw new Error(r.err); done.push('platform set'); }
+    invalidateGameCache(); await refreshGameCache();
+    showToast('Saved: '+done.join(', '));
+    const host=document.getElementById('inlineGameAdmin_'+id);
+    if(host&&host.style.display!=='none'){ host.innerHTML=renderInlineGameAdminTools(id); hydratePayoutConfigAdmin(id); hydrateTicketJackpotAdmin(id); }
+    try{ renderGameAdminList(); }catch(_){}
+  }catch(e){
+    st.textContent='Save failed'+(done.length?' after: '+done.join(', '):'')+' — '+safeUserErrorMessage(e,'admin action'); st.style.color='#ef4444';
+    btn.disabled=false; btn.style.opacity='1';
+  }
 }
 
 function toggleInlineGameAdminTools(gameId){
@@ -9498,6 +9579,7 @@ function toggleInlineGameAdminTools(gameId){
   el.style.display=opening?'block':'none';
   if(opening){
     el.innerHTML=renderInlineGameAdminTools(gameId);
+    try{ gamePlacementChanged(payoutDomId(gameId)); }catch(_){}
     hydratePayoutConfigAdmin(gameId);
     hydrateTicketJackpotAdmin(gameId);
   }
@@ -11559,7 +11641,8 @@ async function uploadGameToChain(){
         status.innerHTML='<span style="color:#ef4444">Files uploaded, but saving their location errored: '+escHtml(safeUserErrorMessage(stErr,'stage hosted url'))+'. Do not Accept yet - run Upload to Chain again.</span>';
       }
     } else if(updateTarget){
-      status.innerHTML='<span style="color:#22c55e">Updated '+uploaded+' files for '+escHtml(updateTarget.name||gameId)+'! Backend listing kept as-is. <a href="'+onChainUrl+'" target="_blank" style="color:#22c55e">'+onChainUrl+'</a></span>';
+      const _typeNoteU=await applyUploadGameTypeIfNeeded(updateTarget.id,false);
+      status.innerHTML='<span style="color:#22c55e">Updated '+uploaded+_typeNoteU+' files for '+escHtml(updateTarget.name||gameId)+'! Backend listing kept as-is. <a href="'+onChainUrl+'" target="_blank" style="color:#22c55e">'+onChainUrl+'</a></span>';
       invalidateGameCache(); await refreshGameCache(); renderGameAdminList(); refreshAdminGameUpdateSelect(); refreshAdminPendingSubmissionSelect(); clearAdminPendingSubmissionPicker();
     } else if(f.name && f.dev){
       status.innerHTML='<span style="color:#ffd700">Registering game in backend...</span>';
@@ -11573,7 +11656,8 @@ async function uploadGameToChain(){
           BigInt(f.tokenCost), f.scoring, BigInt(f.purchasePrice)
         );
         if(r.ok!==undefined){
-          status.innerHTML='<span style="color:#22c55e">Uploaded '+uploaded+' files and registered! Game ID: '+r.ok+' <a href="'+onChainUrl+'" target="_blank" style="color:#22c55e">'+onChainUrl+'</a></span>';
+          const _typeNote=await applyUploadGameTypeIfNeeded(r.ok,true);
+          status.innerHTML='<span style="color:#22c55e">Uploaded '+uploaded+' files and registered!'+_typeNote+' Game ID: '+r.ok+' <a href="'+onChainUrl+'" target="_blank" style="color:#22c55e">'+onChainUrl+'</a></span>';
           invalidateGameCache(); await refreshGameCache(); renderGameAdminList(); refreshAdminGameUpdateSelect(); refreshAdminPendingSubmissionSelect(); clearAdminPendingSubmissionPicker();
         } else {
           status.innerHTML='<span style="color:#ffd700">Files uploaded but registration failed: '+escHtml(safeUserErrorMessage(r.err,'game registration'))+'. <a href="'+onChainUrl+'" target="_blank" style="color:#22c55e">'+onChainUrl+'</a></span>';
@@ -11743,7 +11827,11 @@ async function loadAdminPendingSubmissionTarget(){
   set('uploadGameCompat',game.compat||'desktop');
   const creatorPrincipalText=game.principal||'';
   set('uploadGamePrincipal',creatorPrincipalText);
-  set('uploadGamePayoutAddress',creatorPrincipalText);
+  try{
+    const m=await (await getBackendActor(false)).getGameMonetization(game.id);
+    const t=document.getElementById('uploadGameType');
+    if(t){ t.value=m.paysTickets?'ticket':(m.wantsPurchasable?'purchasable':'visit'); delete t.dataset.dirty; uploadGameTypeChanged(); }
+  }catch(_){}
   try{
     const be=await getBackendActor(false);
     const category=await be.getGameCategory(game.id);
@@ -11965,11 +12053,54 @@ function updateUploadGameActionBtnVisibility(){
   if(hint) hint.style.display=hasThumb?'none':'';
 }
 
+function uploadGameTypeChanged(){
+  const t=document.getElementById('uploadGameType'); const row=document.getElementById('uploadGamePurchaseRow');
+  if(row) row.style.display=(t&&t.value==='purchasable')?'flex':'none';
+}
+// type: 'ticket' | 'visit' | 'purchasable'. Sets monetization and (for non-ticket games) pricing.
+async function applyGameType(gameId,type,purchasePrice){
+  const be=await getBackendActor(true);
+  const pays=type==='ticket', purch=type==='purchasable';
+  const r=await be.setGameMonetization(gameId,pays,purch);
+  if(r.err!==undefined) throw new Error(r.err);
+  if(!pays){
+    const price=purch?Math.max(1,Math.floor(Number(purchasePrice)||0)):0;
+    const p=await be.adminSetGamePricing(gameId,1n,BigInt(price));
+    if(p.err!==undefined) throw new Error(p.err);
+  }
+}
+async function applyUploadGameTypeIfNeeded(gameId,force){
+  const tier=document.getElementById('uploadGameTier')?.value||'showroom';
+  const t=document.getElementById('uploadGameType');
+  if(tier!=='showroom'||!t||!gameId) return '';
+  if(!force&&!t.dataset.dirty) return '';
+  try{
+    await applyGameType(gameId,t.value,document.getElementById('uploadGamePurchasePrice')?.value);
+    return ' Type: '+({ticket:'Ticket Game',visit:'Non-ticket',purchasable:'Purchasable'})[t.value]+'.';
+  }catch(e){ return ' <span style="color:#fbbf24">Type not set: '+escHtml(safeUserErrorMessage(e,'admin action'))+' (set it in Live Games)</span>'; }
+}
+// Live Games Management row dropdown
+async function adminChangeGameType(gameId,type,sel){
+  let price=0;
+  if(type==='purchasable'){
+    const v=prompt('Purchase price in Tokens:', '50');
+    if(v===null||!(Number(v)>=1)){ if(sel) sel.value=sel.dataset.prev||'visit'; return; }
+    price=Math.floor(Number(v));
+  }
+  try{
+    await applyGameType(gameId,type,price);
+    if(sel) sel.dataset.prev=type;
+    invalidateGameCache(); await refreshGameCache(); renderGameAdminList();
+  }catch(e){ if(sel) sel.value=sel.dataset.prev||'visit'; alert(safeUserErrorMessage(e,'admin action')); }
+}
+
 function setUploadGameTier(tier){
   const sel=document.getElementById('uploadGameTier');
   if(sel) sel.value=tier;
   const showroomRow=document.getElementById('uploadGameShowroomOnlyRow');
   if(showroomRow) showroomRow.style.display=(tier==='showroom')?'grid':'none';
+  const typeCol=document.getElementById('uploadGameTypeCol');
+  if(typeCol) typeCol.style.visibility=(tier==='showroom')?'visible':'hidden';
   const backBtn=document.getElementById('uploadGameTierBtnBackroom');
   const showBtn=document.getElementById('uploadGameTierBtnShowroom');
   const isShowroom=tier==='showroom';
@@ -14074,7 +14205,7 @@ function resetUploadGameForm(){
   set('uploadGameThumb','');
   set('uploadGameFile','');
   set('uploadGameThumbFile','');
-  set('uploadGamePayoutAddress','');
+  { const t=document.getElementById('uploadGameType'); if(t){ t.value='ticket'; delete t.dataset.dirty; uploadGameTypeChanged(); } set('uploadGamePurchasePrice','50'); }
   const categoryEl=document.getElementById('uploadGameCategory'); if(categoryEl) categoryEl.value='independent';
   const compatEl=document.getElementById('uploadGameCompat'); if(compatEl) compatEl.value='desktop';
   ['uploadGameControllerReady','uploadGameMouseNeeded'].forEach(id=>{
@@ -14443,6 +14574,11 @@ async function renderGameAdminList(){
       <option value='studio' ${s.gameCategory==='studio'?'selected':''}>Studio</option>
       ${!isBackroom?`<option value='ticket-games' ${s.gameCategory==='ticket-games'?'selected':''}>Ticket Games</option>`:''}
     </select>
+    ${!isBackroom?(()=>{const cur=s.paysTickets?'ticket':(s.wantsPurchasable?'purchasable':'visit');return `<select title='Game type' data-prev='${cur}' onchange='adminChangeGameType("${s.id}",this.value,this)' style='margin-left:4px;padding:2px 4px;background:rgba(0,0,0,.4);border:1px solid rgba(255,215,0,.35);border-radius:4px;color:#ffd700;font-size:.6rem'>
+      <option value='ticket' ${cur==='ticket'?'selected':''}>Type: Ticket Game</option>
+      <option value='visit' ${cur==='visit'?'selected':''}>Type: Non-ticket</option>
+      <option value='purchasable' ${cur==='purchasable'?'selected':''}>Type: Purchasable</option>
+    </select>`;})():''}
     </div></div>`;
   }).join('');
 }
@@ -16981,7 +17117,7 @@ function closeNftDetail(){
 
   ['showProfileModal',showProfileModal],['pickAvatarNft',pickAvatarNft],['saveProfile',saveProfile],['closeProfileModal',closeProfileModal],
   ['filterPlayers',filterPlayers],['openVeteranPortal',openVeteranPortal],['openForumSection',openForumSection],['closeForumSection',closeForumSection],['buyVpNft',buyVpNft],['openThreadDetail',openThreadDetail],['closeThreadDetail',closeThreadDetail],['scanForumUpdates',scanForumUpdates],['renderProfileView',renderProfileView],['openProfileEdit',openProfileEdit],['closeProfileEdit',closeProfileEdit],['saveProfileEdit',saveProfileEdit],['pickEditAvatar',pickEditAvatar],['submitChosenName',submitChosenName],['removeProfilePfp',removeProfilePfp],['closeShowroomEdit',closeShowroomEdit],['saveShowroomEdit',saveShowroomEdit],['toggleShowroomNft',toggleShowroomNft],['viewPublicProfile',viewPublicProfile],['registerPublicPresence',registerPublicPresence],['adminUnban',adminUnban],['renderBanList',renderBanList],['showBanUserModal',showBanUserModal],['showNewPostForm',showNewPostForm],['hideNewPostForm',hideNewPostForm],['submitForumPost',submitForumPost],['submitReply',submitReply],['toggleNestedReplies',toggleNestedReplies],['toggleNestedReplyBox',toggleNestedReplyBox],['deletePost',deletePost],['deleteReply',deleteReply],['adminAddMod',adminAddMod],['adminRemoveMod',adminRemoveMod],['renderModList',renderModList],['adminAddBoost',adminAddBoost],['renderBoostList',renderBoostList],['quickBoostGame',quickBoostGame],['openDaoView',openDaoView],['closeDaoView',closeDaoView],['showDaoRestricted',showDaoRestricted],['openDaoSection',openDaoSection],['closeDaoSection',closeDaoSection],['renderDaoPage',renderDaoPage],['openDaoProposals',openDaoProposals],['closeDaoProposals',closeDaoProposals],['renderDaoThreadList',renderDaoThreadList],['closeDaoThreadDetail',closeDaoThreadDetail],['showDaoNewThread',showDaoNewThread],['hideDaoNewThread',hideDaoNewThread],['submitDaoThread',submitDaoThread],['openDaoThread',openDaoThread],['submitDaoReply',submitDaoReply],['deleteDaoPost',deleteDaoPost],['deleteDaoReply',deleteDaoReply],['renderDaoMain',renderDaoMain],['rescanEditProfileNfts',rescanEditProfileNfts],['showCreateProposal',showCreateProposal],['hideCreateProposal',hideCreateProposal],['submitProposal',submitProposal],['castVote',castVote],['viewProposal',viewProposal],['submitProposalReply',submitProposalReply],['deleteProposal',deleteProposal],['saveAdminResponse',saveAdminResponse],['removeAdminResponse',removeAdminResponse],['previewProposalImages',previewProposalImages],['removeProposalImage',removeProposalImage],['viewProposalImage',viewProposalImage],
-  ['updateProfileDisplay',updateProfileDisplay],['uploadGamePreview',uploadGamePreview],['uploadGameToChain',uploadGameToChain],['setUploadGameTier',setUploadGameTier],['updateUploadGameActionBtnVisibility',updateUploadGameActionBtnVisibility],['updateShowSubMonetizationUi',updateShowSubMonetizationUi],['adminSetPendingGamePricing',adminSetPendingGamePricing],['submitGameNavigate',submitGameNavigate],['refreshAdminPendingSubmissionSelect',refreshAdminPendingSubmissionSelect],['loadAdminPendingSubmissionTarget',loadAdminPendingSubmissionTarget],['useAdminPendingThumbnail',useAdminPendingThumbnail],['swapAdminPendingThumbnail',swapAdminPendingThumbnail],['handleAdminPendingThumbnailSwap',handleAdminPendingThumbnailSwap],['clearAdminPendingSubmissionPicker',clearAdminPendingSubmissionPicker],['refreshAdminGameUpdateSelect',refreshAdminGameUpdateSelect],['loadAdminGameUpdateTarget',loadAdminGameUpdateTarget],['selectAdminGameUpdateTarget',selectAdminGameUpdateTarget],['adminSuspendGame',adminSuspendGame],['adminRelistGame',adminRelistGame],['adminDeleteGamePermanently',adminDeleteGamePermanently],['loadTreasuryInfo',loadTreasuryInfo],['fillMaxTreasuryWithdraw',fillMaxTreasuryWithdraw],['adminWithdrawTreasury',adminWithdrawTreasury],['copyCommonOperatingWithdrawAddress',copyCommonOperatingWithdrawAddress],['loadDaoTreasuryAdmin',loadDaoTreasuryAdmin],['adminBurnDaoTokensFn',adminBurnDaoTokensFn],['adminBurnDaoTicketsFn',adminBurnDaoTicketsFn],['adminTransferDaoTokensFn',adminTransferDaoTokensFn],['adminTransferDaoTicketsFn',adminTransferDaoTicketsFn],['adminAwardDevBadge',adminAwardDevBadge],['adminAwardArtistBadge',adminAwardArtistBadge],['adminRevokeBadge',adminRevokeBadge],['checkJackpotNotifications',checkJackpotNotifications],['showJackpotPopup',showJackpotPopup],['openCollectionBrowser',openCollectionBrowser],['openCollectionManager',openCollectionManager],['chooseNameUpdateCount',chooseNameUpdateCount],['adminEditPendingNftPrice',adminEditPendingNftPrice],['openCollectionPricing',openCollectionPricing],['colPricingFillAll',colPricingFillAll],['colPricingSave',colPricingSave],['colPricingClear',colPricingClear],['adminToggleNftGrail',adminToggleNftGrail],['adminToggleSpotlight',adminToggleSpotlight],['adminEditNftPrice',adminEditNftPrice],['adminEditNftAbility',adminEditNftAbility],['adminClearNftAbility',adminClearNftAbility],['openAbilityPicker',openAbilityPicker],['applyAbilityToTokens',applyAbilityToTokens],['clearAbilityFromTokens',clearAbilityFromTokens],['colMgrSelectAll',colMgrSelectAll],['colMgrDeselectAll',colMgrDeselectAll],['colMgrAssignSelected',colMgrAssignSelected],['openDisabledAbilities',openDisabledAbilities],['toggleAbilityState',toggleAbilityState],['adminCreateCollection',adminCreateCollection],['adminLoadCollections',adminLoadCollections],['adminMintCollection',adminMintCollection],['adminDeleteCol',adminDeleteCol],
+  ['updateProfileDisplay',updateProfileDisplay],['uploadGamePreview',uploadGamePreview],['uploadGameToChain',uploadGameToChain],['setUploadGameTier',setUploadGameTier],['updateUploadGameActionBtnVisibility',updateUploadGameActionBtnVisibility],['updateShowSubMonetizationUi',updateShowSubMonetizationUi],['adminSetPendingGamePricing',adminSetPendingGamePricing],['submitGameNavigate',submitGameNavigate],['refreshAdminPendingSubmissionSelect',refreshAdminPendingSubmissionSelect],['loadAdminPendingSubmissionTarget',loadAdminPendingSubmissionTarget],['useAdminPendingThumbnail',useAdminPendingThumbnail],['swapAdminPendingThumbnail',swapAdminPendingThumbnail],['handleAdminPendingThumbnailSwap',handleAdminPendingThumbnailSwap],['clearAdminPendingSubmissionPicker',clearAdminPendingSubmissionPicker],['refreshAdminGameUpdateSelect',refreshAdminGameUpdateSelect],['loadAdminGameUpdateTarget',loadAdminGameUpdateTarget],['selectAdminGameUpdateTarget',selectAdminGameUpdateTarget],['adminSuspendGame',adminSuspendGame],['adminRelistGame',adminRelistGame],['adminDeleteGamePermanently',adminDeleteGamePermanently],['loadTreasuryInfo',loadTreasuryInfo],['fillMaxTreasuryWithdraw',fillMaxTreasuryWithdraw],['adminWithdrawTreasury',adminWithdrawTreasury],['copyCommonOperatingWithdrawAddress',copyCommonOperatingWithdrawAddress],['loadDaoTreasuryAdmin',loadDaoTreasuryAdmin],['adminBurnDaoTokensFn',adminBurnDaoTokensFn],['adminBurnDaoTicketsFn',adminBurnDaoTicketsFn],['adminTransferDaoTokensFn',adminTransferDaoTokensFn],['adminTransferDaoTicketsFn',adminTransferDaoTicketsFn],['adminAwardDevBadge',adminAwardDevBadge],['adminAwardArtistBadge',adminAwardArtistBadge],['adminRevokeBadge',adminRevokeBadge],['checkJackpotNotifications',checkJackpotNotifications],['showJackpotPopup',showJackpotPopup],['openCollectionBrowser',openCollectionBrowser],['openCollectionManager',openCollectionManager],['gamePlacementChanged',gamePlacementChanged],['saveGamePlacement',saveGamePlacement],['renderGamePlacementPanel',renderGamePlacementPanel],['uploadGameTypeChanged',uploadGameTypeChanged],['adminChangeGameType',adminChangeGameType],['chooseNameUpdateCount',chooseNameUpdateCount],['adminEditPendingNftPrice',adminEditPendingNftPrice],['openCollectionPricing',openCollectionPricing],['colPricingFillAll',colPricingFillAll],['colPricingSave',colPricingSave],['colPricingClear',colPricingClear],['adminToggleNftGrail',adminToggleNftGrail],['adminToggleSpotlight',adminToggleSpotlight],['adminEditNftPrice',adminEditNftPrice],['adminEditNftAbility',adminEditNftAbility],['adminClearNftAbility',adminClearNftAbility],['openAbilityPicker',openAbilityPicker],['applyAbilityToTokens',applyAbilityToTokens],['clearAbilityFromTokens',clearAbilityFromTokens],['colMgrSelectAll',colMgrSelectAll],['colMgrDeselectAll',colMgrDeselectAll],['colMgrAssignSelected',colMgrAssignSelected],['openDisabledAbilities',openDisabledAbilities],['toggleAbilityState',toggleAbilityState],['adminCreateCollection',adminCreateCollection],['adminLoadCollections',adminLoadCollections],['adminMintCollection',adminMintCollection],['adminDeleteCol',adminDeleteCol],
   ['runTreasuryScan',runTreasuryScan],
   ['closeNftDetail',closeNftDetail],
   ['submitExistingNft',submitExistingNft],['switchNftTab',switchNftTab],['resetExistingNftFlow',resetExistingNftFlow],['renderMyNftSubmissions',renderMyNftSubmissions],['showUserNftDetail',showUserNftDetail],
