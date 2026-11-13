@@ -5489,18 +5489,27 @@ function resetInputConfig(){
 // ── Legal pages ──────────────────────────────────────────────
 const _legalCache={};
 // === MANIFESTO BOOK SYSTEM ===
+// manifesto-books-audit-1
 const MANIFESTO_BOOKS = {
   games: {
     title: 'THE GAMES',
     color: '#00ffaa',
     content: `
-<p>Infinity Arcade is a fully on-chain gaming hub built on the Internet Computer Protocol. Every game runs inside the arcade - no downloads, no installs, no accounts. Connect your Internet Identity and play.</p>
-<p><b style="color:#fff">How it works:</b> Players insert Tokens to play. The arcade handles payments, saves, leaderboards, and player Ticket awards. Game developers build normal HTML5 games and add a few lines of postMessage code to integrate.</p>
-<p><b style="color:#fff">Two tiers:</b></p>
-<p><span style="color:#c084fc">The Showroom</span> - Games hosted entirely on the ICP blockchain. Reviewed by admin. Revenue sharing enabled. On-chain saves and leaderboards.</p>
-<p><span style="color:#aa00ff">The Back</span> - Games hosted externally. Goes live instantly. A testing ground for new titles before they graduate to the Showroom.</p>
-<p><b style="color:#fff">For developers:</b> No blockchain experience required. No wallet integration. No canister calls. You make the game, we make it Web3. Ticket games and non-ticket Showroom games accrue ICP-denominated claimable creator earnings.</p>
-<p><b style="color:#fff">Scoring:</b> Ticket payouts use each ticket game's admin-calibrated 8-level score ladder. Payouts are 0-7 Tickets, capped by each game's backed ticket pool and may pay 0 if the pool is empty or the ladder is not enabled.</p>
+<p>Infinity Arcade is a fully on-chain gaming hub built on the Internet Computer. Every game runs inside the arcade - no downloads, no installs, no accounts. Connect your Internet Identity and play.</p>
+
+<p><b style="color:#fff">How it works:</b> Players spend Tokens to play Showroom games (1 Token per run or visit); games in The Back are free. The arcade handles payments, saves, leaderboards and Ticket awards. Game developers build normal HTML5 games and add a few lines of postMessage code to integrate.</p>
+
+<p><b style="color:#fff">Three places for games:</b></p>
+
+<p><b>The Showroom</b> - The main stage. Ticket games (each run can win Tickets from the game\u2019s prize pool) and non-ticket games (pay per visit, optionally purchasable). Reviewed by the Dev Team. 25 ICP submission fee. Creators earn ICP from every Token spent.</p>
+
+<p><b>The Back</b> - Free games, hosted on-chain like the Showroom. Reviewed by the Dev Team. 10 ICP submission fee. Players rate games and tip creators with Tokens (90% to the creator, 10% to the DAO treasury). The proving ground for titles that may graduate to the Showroom.</p>
+
+<p><b>The Blackhole</b> - Links to games hosted elsewhere. 1 ICP to post a link; the community votes on them.</p>
+
+<p><b style="color:#fff">For developers:</b> No blockchain experience required. No wallet integration. No canister calls. You make the game, we make it Web3. Submitting needs a Voting Power Badge (Level 1) from the Prize Booth; every submission is reviewed before it goes live. Creator earnings accrue as claimable ICP: 10% of each Token on a ticket game, 50% on a non-ticket game, plus tips.</p>
+
+<p><b style="color:#fff">Scoring:</b> Ticket payouts use each ticket game\u2019s admin-calibrated 8-level score ladder. Payouts are 0-7 Tickets per run (more with a jackpot, which only DAO members can win), capped by each game\u2019s backed ticket pool. Every paid run starts fresh: saved spots (checkpoints) are for non-ticket games and The Back.</p>
 `
   },
   nfts: {
@@ -5538,11 +5547,14 @@ const MANIFESTO_BOOKS = {
     title: 'THE ARTISTS',
     color: '#ff44aa',
     content: `
-<p style="font-size:1.05rem;font-weight:700;color:#fff">INFINITY Arcade isn't just an economy for Game Creators, Artists are also an intricate part!</p>
-<p>Anyone can list Art in the Prize Booth; approved seller earnings accrue as ICP-denominated claimable creator earnings. Tickets remain prize/perk points, not ICP redemption instruments.</p>
-<p>You can deposit Existing NFTs from the ICP ecosystem.</p>
-<p>Those who acquire Existing NFTs from PrizeBooth can then withdraw them to sell on NFT Markets if desired.</p>
+<p>INFINITY Arcade isn\u2019t just an economy for Game Creators, Artists are also an intricate part!</p>
+
+<p>Players can list NFTs they own in the Prize Booth for Tickets: Official Arcade NFTs, and NFTs from ICP collections the arcade has registered (5-Token listing fee; the NFT is held in escrow until it sells or is taken back). Buyers pay in Tickets; sellers are paid in ICP as claimable creator earnings. Tickets remain prize/perk points, never ICP.</p>
+
+<p>Those who acquire registered-collection NFTs from the Prize Booth can withdraw them to sell on outside NFT markets if desired. Official Arcade NFTs stay inside the arcade by design.</p>
+
 <p>On rare occasions, the Arcade will also release Official Collections, but any Art Commissioned for this will be organized by the Dev Team, sometimes with DAO assistance.</p>
+
 <p>Artists may also be hired for game development, this will also be organized by Dev Team, also with DAO assistance.</p>
 `,
     pages: [
@@ -5554,14 +5566,24 @@ const MANIFESTO_BOOKS = {
     color: '#8b5cf6',
     content: `
 <p>The Infinity Arcade DAO is a lightweight governance system. No SNS. No token launches. No hostile takeover vectors. Just players voting on proposals.</p>
-<p><b style="color:#fff">Voting Power</b> comes from Voting Power Badges. Standard badges give 1 VP each (up to 10). Special badges - High Score Holder, Game Contributor, Artist Contributor - give additional VP.</p>
+
+<p><b style="color:#fff">Voting Power</b> comes from Voting Power Badges, bought in sequence from the Prize Booth with Tickets: 1 VP each, up to 10. Dev Contributor and Artist Contributor badges add 1 VP each. Admin accounts hold no VP.</p>
+
 <p><b style="color:#fff">Who can vote:</b> Anyone with at least 1 VP.</p>
-<p><b style="color:#fff">Who can propose:</b> Anyone with 2+ VP Badges and 5 Tokens. Admin is exempt from costs.</p>
-<p><b style="color:#fff">Proposal categories:</b> Arcade upgrades, treasury grants, game approvals, community initiatives, dev team questions, artist showcases, and more.</p>
-<p><b style="color:#fff">What the DAO controls:</b> Advisory votes. Game approval to "DAO Favourites" tier. Community direction. Aesthetic decisions. The DAO can recommend - it cannot unilaterally execute.</p>
-<p><b style="color:#fff">What the DAO cannot do:</b> Drain the treasury. Modify smart contracts. Override admin safety decisions. Ban users. The DAO is deliberately limited to prevent capture by bad actors.</p>
-<p><b style="color:#fff">Two lotteries</b> - Token and Ticket - run in 8-week cycles funded by the DAO treasury. Voting Power Badges unlock entries (Token Lottery at 3, 6 and 9 badges; Ticket Lottery at 4 and 8). Everyone entered in a cycle wins once, and wins are announced via popup.</p>
-<p style="color:#5a7a9a;font-style:italic;margin-top:20px">The DAO is training wheels for a community. Learn to govern small things well before governing big things at all.</p>
+
+<p><b style="color:#fff">Who can propose:</b> Anyone with 2+ Voting Power Badges, for 5 Tokens (paid into the DAO treasury). Bug reports are free for any DAO member.</p>
+
+<p><b style="color:#fff">Advisory proposals</b> (the Dev Team decides): Recommend a game for the Showroom, Recommendations, Game Design Requests, General votes, Ban User.</p>
+
+<p><b style="color:#fff">Binding proposals</b> (5+ voters and a majority, then a 24-hour timelock, unless the Dev Team vetoes): add or remove a game from DAO Favourites, mute a user for 7 days, hide a Blackhole entry.</p>
+
+<p><b style="color:#fff">Dev Team proposals:</b> Contests, Community Choice votes (e.g. an aesthetic upgrade) and Artist Commission choices, where the community picks between options.</p>
+
+<p><b style="color:#fff">What the DAO cannot do:</b> Drain the treasury. Modify smart contracts. Override Dev Team safety decisions. Ban users on its own. The DAO is deliberately limited to prevent capture by bad actors.</p>
+
+<p><b style="color:#fff">What members get:</b> Restricted forum tiers at 5, 7 and 10 badges; eligibility for game jackpots (DAO members only); and two lotteries - Token and Ticket - that run in 8-week cycles funded by the DAO treasury. Voting Power Badges unlock entries (Token Lottery at 3, 6 and 9 badges; Ticket Lottery at 4 and 8). Everyone entered in a cycle wins once, and wins are announced via popup.</p>
+
+<p>The DAO is training wheels for a community. Learn to govern small things well before governing big things at all.</p>
 `
   }
 };
@@ -5603,31 +5625,18 @@ function manifesoNext(){if(_manifestoPageIdx<_manifestoPages.length-1){_manifest
 window.manifesoPrev=manifesoPrev;
 window.manifesoNext=manifesoNext;
 
-function openPlayerManual(){
-  const pages=['manual-page1.jpg','manual-page2.jpg'];
-  let idx=0;
+function openPlayerManual(){ // player-manual-single
   document.querySelectorAll('[data-player-manual]').forEach(e=>e.remove());
   const el=document.createElement('div');
   el.setAttribute('data-player-manual','1');
   el.onclick=function(ev){if(ev.target===el)el.remove();};
   el.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.95);backdrop-filter:blur(8px);overflow-y:auto;display:flex;align-items:center;justify-content:center;padding:20px';
-  function render(){
-    const total=pages.length;
-    el.innerHTML=`<div style='max-width:860px;width:100%;position:relative'>
-      <button onclick='document.querySelector("[data-player-manual]").remove()' style='position:absolute;top:-14px;right:-14px;background:rgba(0,0,0,.8);border:1px solid #555;color:#fff;border-radius:50%;width:34px;height:34px;cursor:pointer;font-size:1rem;display:grid;place-items:center;z-index:1;transition:all .2s' onmouseenter='this.style.borderColor="#ff4444";this.style.color="#ff4444"' onmouseleave='this.style.borderColor="#555";this.style.color="#fff"'>X</button>
-      <div style='display:flex;justify-content:center;align-items:center;gap:16px;margin-bottom:14px'>
-        <button id='pmPrev' style='padding:6px 22px;background:rgba(0,170,255,.1);border:1px solid rgba(0,170,255,.3);border-radius:8px;color:#00aaff;font-weight:700;font-size:.85rem;cursor:pointer;opacity:${idx>0?1:.3};pointer-events:${idx>0?'auto':'none'}'>Prev</button>
-        <span style='color:#5a7a9a;font-size:.8rem'>${idx+1} / ${total}</span>
-        <button id='pmNext' style='padding:6px 22px;background:rgba(0,170,255,.1);border:1px solid rgba(0,170,255,.3);border-radius:8px;color:#00aaff;font-weight:700;font-size:.85rem;cursor:pointer;opacity:${idx<total-1?1:.3};pointer-events:${idx<total-1?'auto':'none'}'>Next</button>
-      </div>
-      <img src='${pages[idx]}?v=1' style='width:100%;border-radius:12px;display:block;box-shadow:0 0 40px rgba(0,102,255,.3)'/>
-    </div>`;
-    const prev=el.querySelector('#pmPrev');
-    const next=el.querySelector('#pmNext');
-    if(prev) prev.onclick=()=>{if(idx>0){idx--;render();el.scrollTop=0;}};
-    if(next) next.onclick=()=>{if(idx<total-1){idx++;render();el.scrollTop=0;}};
-  }
-  render();
+  el.innerHTML=`<div style='max-width:960px;width:100%;position:relative'>
+    <button onclick='document.querySelector("[data-player-manual]").remove()' aria-label='Close' style='position:absolute;top:-14px;right:-14px;background:rgba(0,0,0,.85);border:1px solid #555;color:#fff;border-radius:50%;width:34px;height:34px;cursor:pointer;font-size:1rem;z-index:1'>\u2715</button>
+    <img src='manual-page1.jpg?v=2' alt='Player Manual: 1. Spend ICP to buy Tokens. 2. Spend Tokens to play games. 3. Earn Tickets with high scores. 4. Spend Tickets in the Prize Booth.' style='width:100%;border-radius:12px;display:block;box-shadow:0 0 40px rgba(0,102,255,.3)'/>
+  </div>`;
+  const onKey=ev=>{ if(ev.key==='Escape'){ el.remove(); document.removeEventListener('keydown',onKey); } };
+  document.addEventListener('keydown',onKey);
   document.body.appendChild(el);
 }
 window.openPlayerManual=openPlayerManual;
