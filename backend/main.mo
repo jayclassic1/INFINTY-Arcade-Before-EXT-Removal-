@@ -3529,6 +3529,62 @@ persistent actor ArcadeBackend {
 
   public query func getCollectionPrices(collectionId : Text) : async [Nat] { collectionPricesOf(collectionId) };
 
+  // Pre-mint per-NFT setup, keyed by (collectionId, imageIndex). Applied to the real token ids at mint.
+  stable var pendingTokenAbilityEntries : [(Text, Nat, Text)] = [];   // encoded ability list
+  stable var pendingTokenPerkTagEntries : [(Text, Nat, [Text])] = [];
+  func pendingUnmintedCollection(collectionId : Text, imageIndex : Nat) : Result.Result<OfficialCollection, Text> {
+    switch (officialCollections.get(collectionId)) {
+      case null { #err("Collection not found") };
+      case (?c) {
+        if (c.nftIds.size() > 0) return #err("Collection already minted: edit the NFTs themselves in the collection manager");
+        if (imageIndex >= c.imageUrls.size()) return #err("Image index out of range");
+        #ok(c)
+      };
+    }
+  };
+  public shared(msg) func adminSetPendingTokenAbilities(collectionId : Text, imageIndex : Nat, list : [(Text, Text)]) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    hydrateRuntimeStateIfNeeded();
+    switch (pendingUnmintedCollection(collectionId, imageIndex)) { case (#err(e)) return #err(e); case (#ok(_)) {} };
+    let clean = switch (cleanAbilityList(list)) { case (#ok(l)) { l }; case (#err(e)) { return #err(e) } };
+    let rest = Array.filter<(Text, Nat, Text)>(pendingTokenAbilityEntries, func(e) { not (e.0 == collectionId and e.1 == imageIndex) });
+    pendingTokenAbilityEntries := if (clean.size() == 0) rest else Array.append<(Text, Nat, Text)>(rest, [(collectionId, imageIndex, encodeAbilityList(clean))]);
+    #ok("NFT #" # Nat.toText(imageIndex + 1) # " abilities saved (" # Nat.toText(clean.size()) # ")")
+  };
+  public shared(msg) func adminSetPendingTokenPerkTags(collectionId : Text, imageIndex : Nat, tags : [Text]) : async Result.Result<Text, Text> {
+    if (not isAdmin(msg.caller)) return #err("Admin only");
+    hydrateRuntimeStateIfNeeded();
+    switch (pendingUnmintedCollection(collectionId, imageIndex)) { case (#err(e)) return #err(e); case (#ok(_)) {} };
+    let clean = switch (cleanPerkTags(tags)) { case (#ok(l)) { l }; case (#err(e)) { return #err(e) } };
+    for (tg in clean.vals()) { if (tg != "gold") return #err("Only Gold status can be set per NFT") };
+    let rest = Array.filter<(Text, Nat, [Text])>(pendingTokenPerkTagEntries, func(e) { not (e.0 == collectionId and e.1 == imageIndex) });
+    pendingTokenPerkTagEntries := if (clean.size() == 0) rest else Array.append<(Text, Nat, [Text])>(rest, [(collectionId, imageIndex, clean)]);
+    #ok("NFT #" # Nat.toText(imageIndex + 1) # " perk tags saved (" # Nat.toText(clean.size()) # ")")
+  };
+  public shared query(msg) func adminGetPendingCollectionSetup(collectionId : Text) : async { abilities : [(Nat, [(Text, Text)])]; perkTags : [(Nat, [Text])] } {
+    if (not isAdmin(msg.caller)) return { abilities = []; perkTags = [] };
+    let ab = Buffer.Buffer<(Nat, [(Text, Text)])>(8);
+    for ((cid, i, raw) in pendingTokenAbilityEntries.vals()) { if (cid == collectionId) ab.add((i, parseAbilityText(raw))) };
+    let pk = Buffer.Buffer<(Nat, [Text])>(8);
+    for ((cid, i, tags) in pendingTokenPerkTagEntries.vals()) { if (cid == collectionId) pk.add((i, tags)) };
+    { abilities = Buffer.toArray(ab); perkTags = Buffer.toArray(pk) }
+  };
+  /// At mint: copy the pending per-image setup onto the real token ids, then forget it.
+  func applyPendingTokenSetup(collectionId : Text, realTokenIds : [Nat]) {
+    for ((cid, i, raw) in pendingTokenAbilityEntries.vals()) {
+      if (cid == collectionId and i < realTokenIds.size()) { officialCollectionAbilities.put(realTokenIds[i], raw) };
+    };
+    for ((cid, i, tags) in pendingTokenPerkTagEntries.vals()) {
+      if (cid == collectionId and i < realTokenIds.size()) {
+        let t = realTokenIds[i];
+        let rest = Array.filter<(Nat, [Text])>(tokenPerkTagEntries, func(e) { e.0 != t });
+        tokenPerkTagEntries := Array.append<(Nat, [Text])>(rest, [(t, tags)]);
+      };
+    };
+    pendingTokenAbilityEntries := Array.filter<(Text, Nat, Text)>(pendingTokenAbilityEntries, func(e) { e.0 != collectionId });
+    pendingTokenPerkTagEntries := Array.filter<(Text, Nat, [Text])>(pendingTokenPerkTagEntries, func(e) { e.0 != collectionId });
+  };
+
   /// Admin: mint each image in an official collection into internal arcade listings.
   public shared(msg) func adminMintCollection(collectionId : Text) : async Result.Result<Text, Text> {
     assert (not isBannedNow(msg.caller)); // banned: only withdrawals, claims and listing allowed
@@ -3563,6 +3619,7 @@ persistent actor ArcadeBackend {
         let mintedIds = Buffer.Buffer<Nat>(collection.imageUrls.size());
         var mintedCount : Nat = 0;
         let perNftPrices = collectionPricesOf(collection.id);
+        applyPendingTokenSetup(collection.id, realTokenIds);
         for (imageUrl in collection.imageUrls.vals()) {
           let listingId = genListingId("official");
           let realTokenId = realTokenIds[mintedCount];
@@ -3619,6 +3676,9 @@ persistent actor ArcadeBackend {
       case (?collection) {
         if (collection.nftIds.size() > 0) return #err("Cannot delete a minted collection");
         officialCollections.delete(collectionId);
+        putCollectionPrices(collectionId, []);
+        pendingTokenAbilityEntries := Array.filter<(Text, Nat, Text)>(pendingTokenAbilityEntries, func(e) { e.0 != collectionId });
+        pendingTokenPerkTagEntries := Array.filter<(Text, Nat, [Text])>(pendingTokenPerkTagEntries, func(e) { e.0 != collectionId });
         #ok(true);
       };
     };
@@ -4414,6 +4474,7 @@ persistent actor ArcadeBackend {
     let caller = msg.caller;
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     hydrateRuntimeStateIfNeeded();
+    if (not isAdmin(caller) and not hasPrizeBoothVpBadge(caller)) return #err(SUBMIT_NEEDS_VP_MSG);
     switch (validateGameSubmissionText(name, developer, thumbnailUrl, description, compatibility)) { case (?e) return #err(e); case null {} };
     if (hasPendingGameSubmission(caller)) return #err("You already have a submission pending admin review. Please wait for it to be approved or rejected before submitting another.");
     if (gameSubmissionInFlight.get(caller) == ?true) {
@@ -5129,6 +5190,7 @@ persistent actor ArcadeBackend {
     let caller = msg.caller;
     if (Principal.isAnonymous(caller)) return #err("Must be authenticated");
     hydrateRuntimeStateIfNeeded();
+    if (not isAdmin(caller) and not hasPrizeBoothVpBadge(caller)) return #err(SUBMIT_NEEDS_VP_MSG);
     switch (validateGameSubmissionText(name, developer, thumbnailUrl, description, compatibility)) { case (?e) return #err(e); case null {} };
     if (hasPendingGameSubmission(caller)) return #err("You already have a submission pending admin review. Please wait for it to be approved or rejected before submitting another.");
     if (gameSubmissionInFlight.get(caller) == ?true) {
@@ -8558,6 +8620,15 @@ persistent actor ArcadeBackend {
   func isDaoSection(section : Text) : Bool {
     section == "dao" or Text.startsWith(section, #text("dao-"));
   };
+
+  /// Level 1 VP: at least one Voting Power Badge bought in the Prize Booth (contributor badges don't count).
+  func hasPrizeBoothVpBadge(owner : Principal) : Bool {
+    for (badge in getBadgesForOwner(owner).vals()) {
+      if (Text.startsWith(badge.badgeType, #text "vp-badge-")) return true;
+    };
+    false
+  };
+  transient let SUBMIT_NEEDS_VP_MSG : Text = "A Voting Power Badge (Level 1) from the Prize Booth is required to submit a game";
 
   func votingPowerOf(owner : Principal) : Nat {
     // Session #3 rules: admin holds no VP; 1 VP per VP Badge; Dev and Artist contributor badges add 1 each

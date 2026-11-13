@@ -644,7 +644,7 @@ function safeUrl(u){u=String(u??'').trim();if(/[\s"'<>\\]/.test(u))return '';if(
   <div id='backSubFeeNote' style='font-size:.72rem;color:#9cb1de'></div>
 </div>
 <button class='btn green' style='margin-top:16px;width:100%;padding:12px;font-size:1rem;border-radius:10px' onclick='submitBackGame()'>Submit to The Back</button>
-<div style='text-align:center;font-size:.68rem;color:#ef4444;margin-top:6px'>10 ICP submission fee · non-refundable, including if your game is rejected</div>
+<div style='text-align:center;font-size:.68rem;color:#ef4444;margin-top:6px'>10 ICP submission fee · non-refundable, including if your game is rejected</div><div id='backSubVpNote' style='display:none;text-align:center;font-size:.72rem;color:#fde68a;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.4);border-radius:8px;padding:8px 10px;margin-top:8px'>🗳️ Submitting a game requires a <b>Voting Power Badge (Level 1)</b> from the Prize Booth. <a href='#' onclick="showView('prizes');return false;" style='color:#ffd700;font-weight:800'>Get one in the Prize Booth →</a></div>
 <div class='result' id='backSubRes' style='margin-top:8px'></div>
 </div>
 </div></div></section>
@@ -678,7 +678,7 @@ function safeUrl(u){u=String(u??'').trim();if(/[\s"'<>\\]/.test(u))return '';if(
 </div>
 
 <button class='btn green' style='margin-top:16px;width:100%;padding:12px;font-size:1rem;border-radius:10px' onclick='submitShowroomGame()'>Submit Showroom Review</button>
-<div style='text-align:center;font-size:.68rem;color:#ef4444;margin-top:6px'>25 ICP submission fee (+0.0002 ICP ledger fees) · non-refundable, including if your game is rejected · Ticket games get 20% back as a seeded ticket pool</div>
+<div style='text-align:center;font-size:.68rem;color:#ef4444;margin-top:6px'>25 ICP submission fee (+0.0002 ICP ledger fees) · non-refundable, including if your game is rejected · Ticket games get 20% back as a seeded ticket pool</div><div id='showSubVpNote' style='display:none;text-align:center;font-size:.72rem;color:#fde68a;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.4);border-radius:8px;padding:8px 10px;margin-top:8px'>🗳️ Submitting a game requires a <b>Voting Power Badge (Level 1)</b> from the Prize Booth. <a href='#' onclick="showView('prizes');return false;" style='color:#ffd700;font-weight:800'>Get one in the Prize Booth →</a></div>
 <div class='result' id='showSubRes' style='margin-top:8px'></div>
 </div>
 </div></div></section>
@@ -1454,14 +1454,21 @@ window.addEventListener('message', (e) => {
 </div>
 </section>
 
-<!-- Mandatory Choose-Name Modal (first login only; no close/cancel — name is set once at account creation and never editable afterward) -->
-<div id='chooseNameModal' style='display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.92);backdrop-filter:blur(6px);justify-content:center;align-items:center'>
-<div style='background:#0a1428;border:1px solid rgba(0,170,255,.3);border-radius:16px;max-width:420px;width:92%;padding:32px;text-align:center;box-shadow:0 0 60px rgba(0,0,0,.6)'>
-<h2 style='margin:0 0 8px;font-size:1.3rem;color:#e0e6f0;letter-spacing:1px'>Choose Your Name</h2>
-<div style='font-size:.8rem;color:#5a8ab8;margin-bottom:18px;line-height:1.5'>This is permanent and cannot be changed later. Choose carefully.</div>
-<input id='chooseNameInput' class='wallet-input' placeholder='Your arcade name' maxlength='20' style='text-align:center;font-size:1.1rem;margin-bottom:10px' onkeydown='if(event.key==="Enter")submitChosenName()'/>
-<div id='chooseNameError' style='color:var(--red);font-size:.75rem;min-height:1.2em;margin-bottom:10px'></div>
-<button onclick='submitChosenName()' style='width:100%;padding:14px;background:rgba(0,170,255,.1);border:2px solid var(--cyan,#00aaff);border-radius:10px;color:var(--cyan,#00aaff);font-weight:800;font-size:1rem;cursor:pointer;letter-spacing:1px;transition:all .3s' onmouseenter='this.style.background="rgba(0,170,255,.2)"' onmouseleave='this.style.background="rgba(0,170,255,.1)"'>Confirm</button>
+<!-- Mandatory Choose-Name Modal (first login only; no close/cancel - the name is set once at account creation and never editable afterward) -->
+<div id='chooseNameModal' style='display:none;position:fixed;inset:0;z-index:200;background:rgba(2,6,18,.94);backdrop-filter:blur(8px);justify-content:center;align-items:center;padding:16px'>
+<div id='chooseNameCard' style='position:relative;background:linear-gradient(180deg,#0d1a33 0%,#070d1c 100%);border:1px solid rgba(0,170,255,.35);border-radius:20px;max-width:440px;width:100%;padding:36px 32px 28px;text-align:center;box-shadow:0 0 0 1px rgba(0,170,255,.08),0 30px 80px rgba(0,0,0,.7),0 0 60px rgba(0,170,255,.12)'>
+<div style='position:absolute;inset:0;border-radius:20px;pointer-events:none;background:radial-gradient(60% 40% at 50% 0%,rgba(0,170,255,.18),transparent 70%)'></div>
+<div style='font-size:.62rem;letter-spacing:4px;color:#5a8ab8;font-weight:800;margin-bottom:10px'>WELCOME TO</div>
+<div style='font-size:1.55rem;font-weight:900;letter-spacing:2px;line-height:1.1;margin-bottom:18px'><span style='color:#fff'>INFINITY</span> <span style='background:linear-gradient(90deg,#4fc3f7,#a855f7,#ef4444);-webkit-background-clip:text;background-clip:text;color:transparent'>ARCADE</span></div>
+<div style='font-size:1rem;color:#e0e6f0;font-weight:800;margin-bottom:6px'>Pick your arcade name</div>
+<div style='font-size:.78rem;color:#8aa6d8;line-height:1.55;margin-bottom:20px'>This is the name players see on leaderboards, forums and your profile.<br><span style='color:#fde68a'>It is permanent and cannot be changed later.</span></div>
+<div style='position:relative'>
+<input id='chooseNameInput' class='wallet-input' placeholder='Your arcade name' maxlength='20' autocomplete='off' spellcheck='false' style='text-align:center;font-size:1.2rem;font-weight:700;letter-spacing:1px;padding:14px 56px 14px 16px;margin:0;border:1px solid rgba(0,170,255,.45);background:rgba(0,0,0,.45);border-radius:12px' oninput='chooseNameUpdateCount()' onkeydown='if(event.key==="Enter")submitChosenName()'/>
+<span id='chooseNameCount' style='position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:.65rem;color:#5a7a9a;font-weight:700'>0/20</span>
+</div>
+<div id='chooseNameError' style='color:var(--red);font-size:.75rem;min-height:1.2em;margin:8px 0 6px'></div>
+<button id='chooseNameBtn' onclick='submitChosenName()' style='width:100%;padding:14px;background:linear-gradient(90deg,rgba(0,170,255,.18),rgba(168,85,247,.18));border:2px solid rgba(0,170,255,.7);border-radius:12px;color:#fff;font-weight:900;font-size:1rem;cursor:pointer;letter-spacing:2px;transition:all .25s;box-shadow:0 0 18px rgba(0,170,255,.15)' onmouseenter='this.style.boxShadow="0 0 28px rgba(0,170,255,.35)";this.style.borderColor="#4fc3f7"' onmouseleave='this.style.boxShadow="0 0 18px rgba(0,170,255,.15)";this.style.borderColor="rgba(0,170,255,.7)"'>ENTER THE ARCADE</button>
+<div style='font-size:.68rem;color:#5a7a9a;margin-top:16px;line-height:1.5'>Profile picture, bio and NFT wall can be set any time from <b style='color:#8aa6d8'>Profile → Edit Profile</b>.</div>
 </div>
 </div>
 
@@ -1845,9 +1852,10 @@ window.addEventListener('message', (e) => {
 <div class='faq-cat' data-cat='getting-started'>
 <div style='font-size:.75rem;font-weight:800;color:#00aaff;letter-spacing:2px;margin:20px 0 10px;text-shadow:0 0 10px rgba(0,170,255,.3)'>GETTING STARTED</div>
 
+<!-- faq-bot-sync-1 -->
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What is Infinity Arcade?</button><div class='faq-a'>Infinity Arcade is a decentralized gaming hub built on the Internet Computer Protocol (ICP). Play games, earn tickets, collect NFTs, and participate in community governance - all 100% on-chain. No accounts, no passwords. Just connect with Internet Identity and play.</div></div>
 
-<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How do I create an account?</button><div class='faq-a'>Click "Connect / Create" in the top bar. This opens Internet Identity - a decentralized authentication system by DFINITY. You can create a new identity using your device's biometrics (fingerprint, Face ID) or a security key. No email, no password. Your identity is cryptographically yours.</div></div>
+<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How do I create an account?</button><div class='faq-a'>Click "Connect / Create" in the top bar. This opens Internet Identity - a decentralized authentication system by DFINITY. You can create a new identity using your device's biometrics (fingerprint, Face ID) or a security key. No email, no password. Your identity is cryptographically yours. You stay signed in for 24 hours (or 4 hours without activity on the page); after that, just connect again.</div></div>
 
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What do I need to play games?</button><div class='faq-a'>You need Tokens. Deposit ICP into your arcade account (1 ICP = 100 Tokens), then spend Tokens to play. Every Showroom game costs <b>1 Token</b>: ticket games charge per run, other games per visit (sessions last up to 2 hours). Games in The Back are free. In ticket games, your score decides how many Tickets you win from that game's prize pool.</div></div>
 
@@ -1874,20 +1882,20 @@ window.addEventListener('message', (e) => {
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How do games work?</button><div class='faq-a'>Games run in your browser inside the arcade. In ticket games, each 1-Token payment buys one run: when the run ends, press Submit Score and your score sets your Ticket payout from that game's prize pool (up to 7 Tickets per run, more with a jackpot). Game sessions last up to 2 hours. Higher scores = more Tickets. Each game has its own prize pool, funded by the Tokens players spend on it.</div></div>
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What are jackpots?</button><div class='faq-a'>Some ticket games have score jackpots: extra Tickets for reaching a high score or setting a new record, paid from that game's prize pool. <b>Jackpots are paid only to DAO members</b>, meaning anyone with at least 1 Voting Power (a Voting Power Badge from the Prize Booth, or a Dev/Artist Contributor badge). Everyone else still earns the normal Tickets for their score, and the arcade tells you when a score would have won a jackpot.</div></div>
 
-<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>Do my saves carry over between sessions?</button><div class='faq-a'>Yes - games that support checkpoints will save your progress to your account. Come back tomorrow and pick up where you left off. Your save data is tied to your identity, so it works on any device you log into.</div></div>
+<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>Do my saves carry over between sessions?</button><div class='faq-a'>In non-ticket games and The Back, yes: games that support checkpoints save your progress to your account, so you can come back tomorrow and pick up where you left off on any device you log into. Ticket games have no saved spots: every paid run starts fresh, so a run's score always comes from that run alone.</div></div>
 
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>Can I play with friends on the same computer?</button><div class='faq-a'>Yes, in games that support it. Two players can share the keyboard (usually Player 1 on W A S D and Player 2 on the arrow keys), and more players can join with USB or Bluetooth controllers. Use the <b>Connect Controllers</b> button at the bottom of the Showroom, The Back or Blackhole to choose which player each controller is.</div></div>
 
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>Can I play on my phone?</button><div class='faq-a'>Yes. Open the arcade on your phone or tablet and the <b>Play</b> section lists every Showroom and The Back game its creator made for phones. Desktop-only games are hidden there, so you never spend a Token on a game you can't control. Your wallet and NFTs work on mobile too; forums, the DAO and the Prize Booth are on desktop.</div></div>
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>Can I use a controller?</button><div class='faq-a'>Yes. Pair any USB or Bluetooth controller (Xbox, PlayStation, Switch Pro and most others), then press a button on it with the arcade open. The <b>Connect Controllers</b> button at the bottom of the Showroom, The Back and Blackhole shows the connection status, lets you choose which player each controller is, and has fixes for common problems. Each game decides what the buttons do, and many let you reassign them from a <b>Controls</b> option on their title screen. Keyboard keys can be changed from the gear icon on your Profile.</div></div>
 
-<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What's the difference between The Back and the Showroom?</button><div class='faq-a'>The Back is the proving ground: any developer can submit a game there, every game is free to play, players rate games with likes and dislikes, and players can tip creators. The Showroom is the main stage: vetted games that cost 1 Token per run or visit, including ticket games with prize pools. Creators earn from Showroom plays and purchases, and from tips in The Back.</div></div>
+<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What's the difference between The Back and the Showroom?</button><div class='faq-a'>The Back is the proving ground: any developer can submit a game there, every game is free to play, players rate games with likes and dislikes, and players can tip creators with Tokens (90% goes to the creator, 10% supports the DAO treasury; up to 100 Tokens per player per day). The Showroom is the main stage: vetted games that cost 1 Token per run or visit, including ticket games with prize pools. Creators earn from Showroom plays and purchases, and from tips in The Back.</div></div>
 </div>
 
 <div class='faq-cat' data-cat='nfts'>
 <div style='font-size:.75rem;font-weight:800;color:#c084fc;letter-spacing:2px;margin:20px 0 10px;text-shadow:0 0 10px rgba(192,132,252,.3)'>NFTs & PRIZES</div>
 
-<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How do NFTs work in the arcade?</button><div class='faq-a'>The Prize Booth has NFTs you can redeem with Tickets. These are real NFTs minted on-chain - once redeemed, they're in your arcade wallet. You can use them as profile pictures, hold them as collectibles, or withdraw them to an external wallet.</div></div>
+<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How do NFTs work in the arcade?</button><div class='faq-a'>The Prize Booth has NFTs you can redeem with Tickets. These are real NFTs minted on-chain - once redeemed, they're in your arcade wallet. You can use them as profile pictures, hold them as collectibles, or withdraw them to an external wallet. You can also list NFTs you own for Tickets: Official Arcade NFTs and NFTs from collections the arcade has registered, for a 5-Token listing fee. Your NFT is held in escrow by the arcade until it sells or you take it back.</div></div>
 
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>Can NFTs do anything in games?</button><div class='faq-a'>Yes, in games that support them. Official Arcade NFTs carry perk tags that games can read to unlock extras such as skins, titles, special weapons or bonus content. In ticket games, perks are cosmetic only and never affect your score. Only NFTs you hold count, not ones listed in the Prize Booth.</div></div>
 
@@ -1907,13 +1915,13 @@ window.addEventListener('message', (e) => {
 <div class='faq-cat' data-cat='developers'>
 <div style='font-size:.75rem;font-weight:800;color:#f97316;letter-spacing:2px;margin:20px 0 10px;text-shadow:0 0 10px rgba(249,115,22,.3)'>FOR GAME DEVELOPERS</div>
 
-<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How do I submit a game?</button><div class='faq-a'>Click "Submit a Game" in the Showroom or The Back, then upload your game as a .zip (with an index.html) and a thumbnail. The submission fee is 10 ICP for The Back or 25 ICP for the Showroom, paid from your arcade deposit and non-refundable, and every game is reviewed before it goes live. Your game talks to the arcade through simple postMessage calls for scores, saves and controller input. The creator guides cover every requirement.</div></div>
+<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How do I submit a game?</button><div class='faq-a'>You need a Voting Power Badge (Level 1) from the Prize Booth on the account you submit from. Then click "Submit a Game" in the Showroom or The Back and upload your game as a .zip (with an index.html) and a thumbnail. The submission fee is 10 ICP for The Back or 25 ICP for the Showroom, paid from your arcade deposit and non-refundable, and every game is reviewed before it goes live. Your game talks to the arcade through simple postMessage calls for scores, saves and controller input. The creator guides cover every requirement.</div></div>
 
-<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How much do I earn?</button><div class='faq-a'>Showroom games build up creator earnings as claimable ICP: 10% of each Token spent on a ticket game, and 50% on a non-ticket game (including purchases). Tips add to them. Claim manually at any time on the Creator Earnings page, or turn on <b>Auto-payout</b> to have them sent every 14 days to an address you choose (a new address takes 48 hours to take effect). Claimed ICP arrives minus the 0.0001 ICP ledger fee. Submission fees and all other payments are non-refundable.</div></div>
+<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How much do I earn?</button><div class='faq-a'>Showroom games build up creator earnings as claimable ICP: 10% of each Token spent on a ticket game, and 50% on a non-ticket game (including purchases). Tips add to them too: 90% of every Token tip (the other 10% goes to the DAO treasury). Claim manually at any time on the Creator Earnings page, or turn on <b>Auto-payout</b> to have them sent every 14 days to an address you choose (a new address takes 48 hours to take effect). Claimed ICP arrives minus the 0.0001 ICP ledger fee. Submission fees and all other payments are non-refundable.</div></div>
 
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>Do I need blockchain experience?</button><div class='faq-a'>No. Zero. Your game is a normal HTML5/JavaScript game. It talks to the arcade through simple browser postMessage calls - the same API websites already use. No wallet integration, no canister calls, no Motoko. You make the game, we make it Web3.</div></div>
 
-<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What about multiplayer and saves?</button><div class='faq-a'>The arcade provides checkpoint saves (your game sends save data, arcade stores it per-player) and local multiplayer input (up to 4 players via keyboard split + controllers). All through postMessage. Add 5-10 lines of code and your game supports saves and local co-op.</div></div>
+<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What about multiplayer and saves?</button><div class='faq-a'>The arcade provides checkpoint saves for non-ticket games (your game sends save data, the arcade stores it per player; ticket games never use saves, every paid run starts fresh) and local multiplayer input (up to 4 players via keyboard split + controllers). All through postMessage. Add 5-10 lines of code and your game supports saves and local co-op.</div></div>
 
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What happens if I upload content I don't own?</button><div class='faq-a'>Infinity Arcade enforces a strict IP Strike System. <b>Strike 1:</b> Content removed, formal warning, submission fees non-refundable. <b>Strike 2:</b> Content removed, soft ban (minimum 30 days), all submissions reviewed, Voting Power Badges may be revoked. <b>Strike 3:</b> Content removed, permanent hard ban, all badges revoked, soulbound assets forfeited. Strikes never expire. Egregious infringement (ripping published games, uploading well-known copyrighted characters) may skip directly to Strike 2 or 3. Full details are in our Terms of Service.</div></div>
 </div>
@@ -2498,7 +2506,7 @@ const ENV=IS_LOCAL_NET?ARCADE_ENVS.local:ARCADE_ENVS.ic;
 document.addEventListener('DOMContentLoaded',()=>{const c=document.getElementById('mxCid');if(c)c.textContent=location.host;});
 const ENV_UNCONFIGURED=Object.values(ENV).flat().some(v=>String(v).startsWith('PASTE_'));
 if(ENV.beta){
-  document.addEventListener('DOMContentLoaded',()=>{const r=document.createElement('div');r.id='betaRibbon';r.style.cssText='position:fixed;left:12px;bottom:12px;z-index:9998;padding:5px 12px;border-radius:999px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.5);color:#fde68a;font:800 10px/1.4 system-ui;letter-spacing:2px;pointer-events:none';r.textContent=ENV.beta;document.body.appendChild(r);});
+  document.addEventListener('DOMContentLoaded',()=>{const r=document.createElement('div');r.id='betaRibbon';r.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:12px;z-index:9998;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis;padding:5px 12px;border-radius:999px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.5);color:#fde68a;font:800 10px/1.4 system-ui;letter-spacing:2px;pointer-events:none';r.textContent=ENV.beta;document.body.appendChild(r);});
 }
 if(ENV_UNCONFIGURED){
   document.addEventListener('DOMContentLoaded',()=>{const d=document.createElement('div');d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#7f1d1d;color:#fff;font:700 13px system-ui;padding:8px 14px;text-align:center';d.textContent='Mainnet canister IDs are not configured in index.html (ARCADE_ENVS.ic). This build will not work here.';document.body.appendChild(d);});
@@ -3539,13 +3547,17 @@ async function ensureNameChosen(){
   }catch(e){console.warn('Name check failed:',e);}
 }
 
+function chooseNameUpdateCount(){ const i=qs('chooseNameInput'), c=qs('chooseNameCount'); if(i&&c){ c.textContent=i.value.length+'/20'; c.style.color=i.value.length>=20?'#fde68a':'#5a7a9a'; } }
 async function submitChosenName(){
   const input=qs('chooseNameInput');
   const errEl=qs('chooseNameError');
+  const btn=qs('chooseNameBtn');
   const name=input.value.trim();
-  if(!name){errEl.textContent='Please enter a name.';return;}
+  if(!name){errEl.textContent='Please enter a name.';input.focus();return;}
   if(name.length>20){errEl.textContent='Name must be 20 characters or fewer.';return;}
+  if(name.length<2){errEl.textContent='Name must be at least 2 characters.';return;}
   errEl.textContent='';
+  if(btn){btn.disabled=true;btn.textContent='SAVING…';btn.style.opacity='.7';}
   try{
     const be=await getBackendActor(true);
     const result=await be.setPlayerProfile(name,'','');
@@ -3554,7 +3566,8 @@ async function submitChosenName(){
     saveProfileData({...existing,name});
     qs('chooseNameModal').style.display='none';
     updateProfileDisplay();
-  }catch(e){errEl.textContent='Failed to save name. Please try again.';}
+  }catch(e){errEl.textContent=safeUserErrorMessage(e,'profile');}
+  finally{ if(btn){btn.disabled=false;btn.textContent='ENTER THE ARCADE';btn.style.opacity='1';} }
 }
 
 // View someone else's profile
@@ -4006,7 +4019,6 @@ async function doIILogin(){
     updateProfileDisplay();
     ensureNameChosen();
     if(modal) modal.remove();
-    if(!getProfile()){showProfileModal();}
     // Check for jackpot wins
     checkJackpotNotifications();
     // Check for game submission accept/reject notifications
@@ -6720,7 +6732,7 @@ function backendIdl({IDL}){
     adminSetDaoFavourite:IDL.Func([IDL.Text,IDL.Bool],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),
     adminAddNftGrail:IDL.Func([IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),
     adminRemoveNftGrail:IDL.Func([IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),
-    setMyAvatarNft:IDL.Func([IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),getMyAvatarNft:IDL.Func([],[IDL.Opt(IDL.Text)],['query']),setMyPfpNft:IDL.Func([IDL.Opt(IDL.Nat)],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),getCosmetics:IDL.Func([IDL.Vec(IDL.Principal)],[IDL.Vec(IDL.Tuple(IDL.Principal,IDL.Record({border:IDL.Text,neon:IDL.Text,title:IDL.Text})))],['query']),getMyPerks:IDL.Func([],[IDL.Record({vp:IDL.Nat,access:IDL.Vec(IDL.Text),wallSlots:IDL.Nat,forumThreads:IDL.Nat,proposals:IDL.Nat,gxpAmp:IDL.Nat,mxpAmp:IDL.Nat,dxpAmp:IDL.Nat,tokenLottery:IDL.Nat,ticketLottery:IDL.Nat})],['query']),adminSetCollectionPerkTags:IDL.Func([IDL.Text,IDL.Vec(IDL.Text)],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminSetTokenPerkTags:IDL.Func([IDL.Nat,IDL.Vec(IDL.Text)],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminGetCollectionPerkTags:IDL.Func([IDL.Text],[IDL.Record({collection:IDL.Vec(IDL.Text),tokens:IDL.Vec(IDL.Tuple(IDL.Nat,IDL.Vec(IDL.Text)))})],['query']),getMyGamePerks:IDL.Func([],[IDL.Record({tags:IDL.Vec(IDL.Text),gxp:IDL.Nat,dxp:IDL.Nat,mxp:IDL.Nat})],['query']),adminSetCollectionAbilities:IDL.Func([IDL.Text,IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminSetTokenAbilities:IDL.Func([IDL.Nat,IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminSyncOfficialOwners:IDL.Func([],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminGetPlayerAbilities:IDL.Func([IDL.Principal],[IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))],['query']),adminGetCollectionAbilitySetup:IDL.Func([IDL.Text],[IDL.Record({collection:IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text)),tokens:IDL.Vec(IDL.Tuple(IDL.Nat,IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))))})],['query']),saveCheckpoint:IDL.Func([IDL.Text,IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),getCheckpoint:IDL.Func([IDL.Principal,IDL.Text],[IDL.Opt(IDL.Text)],['query']),clearCheckpoint:IDL.Func([IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),getMyOpenSession:IDL.Func([IDL.Text],[IDL.Opt(IDL.Int)],['query']),adminAssignAbility:IDL.Func([IDL.Nat,IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),
+    setMyAvatarNft:IDL.Func([IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),getMyAvatarNft:IDL.Func([],[IDL.Opt(IDL.Text)],['query']),setMyPfpNft:IDL.Func([IDL.Opt(IDL.Nat)],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),getCosmetics:IDL.Func([IDL.Vec(IDL.Principal)],[IDL.Vec(IDL.Tuple(IDL.Principal,IDL.Record({border:IDL.Text,neon:IDL.Text,title:IDL.Text})))],['query']),getMyPerks:IDL.Func([],[IDL.Record({vp:IDL.Nat,access:IDL.Vec(IDL.Text),wallSlots:IDL.Nat,forumThreads:IDL.Nat,proposals:IDL.Nat,gxpAmp:IDL.Nat,mxpAmp:IDL.Nat,dxpAmp:IDL.Nat,tokenLottery:IDL.Nat,ticketLottery:IDL.Nat})],['query']),adminSetCollectionPerkTags:IDL.Func([IDL.Text,IDL.Vec(IDL.Text)],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminSetTokenPerkTags:IDL.Func([IDL.Nat,IDL.Vec(IDL.Text)],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminGetCollectionPerkTags:IDL.Func([IDL.Text],[IDL.Record({collection:IDL.Vec(IDL.Text),tokens:IDL.Vec(IDL.Tuple(IDL.Nat,IDL.Vec(IDL.Text)))})],['query']),getMyGamePerks:IDL.Func([],[IDL.Record({tags:IDL.Vec(IDL.Text),gxp:IDL.Nat,dxp:IDL.Nat,mxp:IDL.Nat})],['query']),adminSetCollectionAbilities:IDL.Func([IDL.Text,IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminSetTokenAbilities:IDL.Func([IDL.Nat,IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminSetPendingTokenAbilities:IDL.Func([IDL.Text,IDL.Nat,IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminSetPendingTokenPerkTags:IDL.Func([IDL.Text,IDL.Nat,IDL.Vec(IDL.Text)],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminGetPendingCollectionSetup:IDL.Func([IDL.Text],[IDL.Record({abilities:IDL.Vec(IDL.Tuple(IDL.Nat,IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text)))),perkTags:IDL.Vec(IDL.Tuple(IDL.Nat,IDL.Vec(IDL.Text)))})],['query']),adminSyncOfficialOwners:IDL.Func([],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),adminGetPlayerAbilities:IDL.Func([IDL.Principal],[IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))],['query']),adminGetCollectionAbilitySetup:IDL.Func([IDL.Text],[IDL.Record({collection:IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text)),tokens:IDL.Vec(IDL.Tuple(IDL.Nat,IDL.Vec(IDL.Tuple(IDL.Text,IDL.Text))))})],['query']),saveCheckpoint:IDL.Func([IDL.Text,IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),getCheckpoint:IDL.Func([IDL.Principal,IDL.Text],[IDL.Opt(IDL.Text)],['query']),clearCheckpoint:IDL.Func([IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),getMyOpenSession:IDL.Func([IDL.Text],[IDL.Opt(IDL.Int)],['query']),adminAssignAbility:IDL.Func([IDL.Nat,IDL.Text],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),
     adminGetCollectionTokenAbilities:IDL.Func([IDL.Text],[IDL.Vec(IDL.Tuple(IDL.Nat,IDL.Text))],['query']),
     adminBatchAssignAbilities:IDL.Func([IDL.Vec(IDL.Tuple(IDL.Nat,IDL.Text))],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),
     adminRemoveAbility:IDL.Func([IDL.Nat],[IDL.Variant({ok:IDL.Text,err:IDL.Text})],[]),
@@ -8795,6 +8807,7 @@ async function submitBackGame(){
   if(!zipFile){qs(resId).textContent='Please choose a game zip file'; return;}
   if(!thumbFile){qs(resId).textContent='Please choose a thumbnail image'; return;}
   if(!S.identity) return alert('Please connect your wallet to pay the submission fee');
+  if(!await submitVpGate('backSub')){ qs(resId).innerHTML='<span style="color:#fde68a">A Voting Power Badge (Level 1) from the Prize Booth is required to submit a game.</span>'; return; }
   if(!await arcadeConfirm('Submission Fee: 10 ICP','10 ICP will be deducted from your arcade deposit.<br><span style="color:#ef4444;font-size:.8rem">Non-refundable. Your game and thumbnail will be reviewed by admin before going live.</span>')) return;
   qs(resId).innerHTML='<span style="color:var(--cyan)">Submitting game...</span>';
   try{
@@ -8859,6 +8872,7 @@ async function submitShowroomGame(){
   if(!zipFile){qs(resId).textContent='Please choose a game zip file'; return;}
   if(!thumbFile){qs(resId).textContent='Please choose a thumbnail image'; return;}
   if(!S.identity) return alert('Please connect your wallet to pay the submission fee');
+  if(!await submitVpGate('showSub')){ qs(resId).innerHTML='<span style="color:#fde68a">A Voting Power Badge (Level 1) from the Prize Booth is required to submit a game.</span>'; return; }
   if(!await arcadeConfirm('Submission Fee: 25 ICP','25 ICP (+0.0002 ICP ledger fees, one of which covers moving your ticket-pool seed) will be deducted from your arcade deposit.<br><span style="color:#ef4444;font-size:.8rem">Non-refundable. Your game and thumbnail will be reviewed by admin before going live in Showroom.</span>')) return;
   qs(resId).innerHTML='<span style="color:var(--cyan)">Submitting game...</span>';
   try{
@@ -12970,8 +12984,7 @@ async function adminLoadCollections(){
       const mintBtn=minted?
         `<span style="color:#39ff14">Minted (${c.nftIds.length} NFTs)</span>`:
         `<button class='btn' onclick='adminMintCollection("${c.id}")' style='font-size:.6rem;padding:2px 8px;border-color:#ffd700;color:#ffd700'>Mint All</button>`;
-      const manageBtn=minted?
-        `<button class='btn' onclick='openCollectionManager("${c.id}")' style='font-size:.6rem;padding:2px 8px;border-color:#a855f7;color:#a855f7'>Manage</button>`:'';
+      const manageBtn=`<button class='btn' onclick='openCollectionManager("${c.id}")' style='font-size:.6rem;padding:2px 8px;border-color:#a855f7;color:#a855f7'>${minted?'Manage':'Abilities'}</button>`;
       const deleteBtn=minted?'':
         `<button class='btn' onclick='adminDeleteCol("${c.id}")' style='font-size:.6rem;padding:2px 8px;border-color:#ef4444;color:#ef4444'>Delete</button>`;
       const abilities=c.abilities.length>0?
@@ -13071,16 +13084,26 @@ async function openCollectionManager(colId){
   const cols=await be.getOfficialCollections();
   const col=cols.find(c=>c.id===colId);
   if(!col){arcadeAlert('Error','Collection not found');return;}
+  // Pre-mint: the NFTs have no token ids yet, so they are addressed by image number (0-based).
+  const premint=col.nftIds.length===0;
+  window._colMgrPremint=premint;
+  let pendingPrices=[];
+  if(premint){ try{ pendingPrices=(await be.getCollectionPrices(colId)).map(Number); }catch(_e){} }
 
   // Get all listings for this collection
-  const listings=await be.getNftListings();
+  const listings=premint?[]:await be.getNftListings();
   const colListings=listings.filter(l=>l.collectionName===col.name);
 
-  // Get abilities for all tokens
+  // Get abilities for all tokens (pre-mint: pending setup by image index)
   let abilityMap={};
   try{
-    const abilities=await (await getBackendActor(true)).adminGetCollectionTokenAbilities(colId);
-    for(const [tokenId,ability] of abilities) abilityMap[Number(tokenId)]=ability;
+    if(premint){
+      const setup=await (await getBackendActor(true)).adminGetPendingCollectionSetup(colId);
+      for(const [idx,list] of setup.abilities) abilityMap[Number(idx)]=list.map(([k,v])=>v?k+'='+v:k).join('|');
+    }else{
+      const abilities=await (await getBackendActor(true)).adminGetCollectionTokenAbilities(colId);
+      for(const [tokenId,ability] of abilities) abilityMap[Number(tokenId)]=ability;
+    }
   }catch(e){console.warn('Could not fetch abilities:',e);}
 
   // Get disabled abilities
@@ -13099,7 +13122,7 @@ async function openCollectionManager(colId){
     <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:16px'>
       <div>
         <h2 style='font-size:1rem;font-weight:800;color:#a855f7;letter-spacing:2px;margin:0'>${escHtml(col.name)}</h2>
-        <div style='font-size:.65rem;color:#5a7a9a;margin-top:2px'>${col.nftIds.length} NFTs | ${Number(col.ticketCost)} tickets default | ${colId}</div>
+        <div style='font-size:.65rem;color:#5a7a9a;margin-top:2px'>${premint?col.imageUrls.length+' NFTs \u00b7 <b style="color:#f97316">NOT MINTED YET</b> \u00b7 abilities, Gold and prices set here are applied when you Mint All':col.nftIds.length+' NFTs'} | ${Number(col.ticketCost)} tickets default | ${colId}</div>
       </div>
       <div style='display:flex;gap:6px;align-items:center;flex-wrap:wrap'>
         <button onclick='colMgrSelectAll()' style='background:rgba(0,170,255,.1);border:1px solid var(--cyan);color:var(--cyan);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.6rem;font-weight:700'>Select All</button>
@@ -13113,11 +13136,12 @@ async function openCollectionManager(colId){
     <div id='colMgrStatus' style='font-size:.65rem;color:#5a7a9a;margin-bottom:8px'></div>
     <div style='display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px'>`;
 
-  for(let i=0;i<col.nftIds.length;i++){
-    const tokenId=Number(col.nftIds[i]);
+  const cardCount=premint?col.imageUrls.length:col.nftIds.length;
+  for(let i=0;i<cardCount;i++){
+    const tokenId=premint?i:Number(col.nftIds[i]);
     const listing=listingMap[tokenId];
     const imgUrl=i<col.imageUrls.length?col.imageUrls[i]:'';
-    const price=listing?Number(listing.ticketCost):Number(col.ticketCost);
+    const price=premint?(pendingPrices.length===col.imageUrls.length?pendingPrices[i]:Number(col.ticketCost)):(listing?Number(listing.ticketCost):Number(col.ticketCost));
     const ability=abilityMap[tokenId]||'none';
     const abilityLabel=ability!=='none'?abilityTextLabel(ability):'No ability';
     const abilityColor=ability!=='none'?(disabledSet.has(ability)?'#ef4444':'#a855f7'):'#3d6090';
@@ -13130,10 +13154,10 @@ async function openCollectionManager(colId){
         <img src="${imgUrl}" style='width:100%;height:100%;object-fit:contain' onerror='this.style.display="none"'/>
       </div>
       <div style='padding:6px 8px'>
-        <div style='font-size:.65rem;font-weight:700;color:#fff'>#${num} <span style='color:#5a7a9a;font-weight:400'>Token ${tokenId}</span></div>
+        <div style='font-size:.65rem;font-weight:700;color:#fff'>#${num} <span style='color:#5a7a9a;font-weight:400'>${premint?'pre-mint':'Token '+tokenId}</span></div>
         <div style='display:flex;justify-content:space-between;align-items:center;margin-top:4px'>
           <span style='color:var(--gold);font-weight:800;font-size:.6rem'>🎟️ ${price.toLocaleString()}</span>
-          <button onclick='adminEditNftPrice("${listingId}",${price})' style='background:none;border:1px solid rgba(255,215,0,.3);color:#ffd700;border-radius:4px;padding:1px 6px;cursor:pointer;font-size:.5rem'>Edit Price</button>
+          <button onclick='${premint?`adminEditPendingNftPrice("${colId}",${i},${price})`:`adminEditNftPrice("${listingId}",${price})`}' style='background:none;border:1px solid rgba(255,215,0,.3);color:#ffd700;border-radius:4px;padding:1px 6px;cursor:pointer;font-size:.5rem'>Edit Price</button>
         </div>
         <div style='margin-top:4px;font-size:.55rem;color:${abilityColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis' title='${escHtml(ability)}'>${disabledSet.has(ability)?'[DISABLED] ':''}${abilityLabel}</div>
         <div style='display:flex;gap:4px;margin-top:4px'>
@@ -13250,15 +13274,20 @@ async function openAbilityEditor(target,colId){
   const tokens=isCol?[]:(Array.isArray(target)?target:[target]).map(Number).filter(n=>!isNaN(n));
   if(!colId){arcadeAlert('Abilities','Open a collection in the collection manager first.');return;}
   if(!isCol&&!tokens.length){arcadeAlert('Abilities','Tick at least one NFT first.');return;}
+  const premint=!!window._colMgrPremint;
   let setup={collection:[],tokens:[]};
-  try{ setup=await (await getBackendActor(true)).adminGetCollectionAbilitySetup(colId); }
+  try{
+    const beA=await getBackendActor(true);
+    setup=await beA.adminGetCollectionAbilitySetup(colId);
+    if(premint){ const pend=await beA.adminGetPendingCollectionSetup(colId); setup={collection:setup.collection,tokens:pend.abilities}; }
+  }
   catch(e){ arcadeAlert('Abilities','Could not load current abilities: '+escHtml(safeUserErrorMessage(e,'abilities'))); return; }
   const tokMap={}; for(const [t,l] of setup.tokens) tokMap[Number(t)]=l;
   const current=isCol?setup.collection:(tokens.length===1?(tokMap[tokens[0]]||[]):[]);
   const has=k=>current.some(([a])=>a===k);
   const val=k=>{const e=current.find(([a])=>a===k);return e?e[1]:'';};
   const multi=!isCol&&tokens.length>1;
-  const heading=isCol?'Collection-wide abilities':(multi?tokens.length+' NFTs selected':'Token '+tokens[0]);
+  const heading=isCol?'Collection-wide abilities':(multi?tokens.length+' NFTs selected':(premint?'NFT #'+(tokens[0]+1)+' (not minted yet)':'Token '+tokens[0]));
   let h=`<div data-ability-editor style='position:fixed;inset:0;background:rgba(0,0,0,.96);z-index:10000;overflow-y:auto;padding:20px' onclick='if(event.target===this)this.remove()'>
   <div style='max-width:720px;margin:0 auto'>
     <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:12px'>
@@ -13286,7 +13315,7 @@ async function openAbilityEditor(target,colId){
   }
   if(!isCol){
     let _gold=false;
-    if(tokens.length===1){ try{ const ps=await (await getBackendActor(true)).adminGetCollectionPerkTags(colId); const e=ps.tokens.find(([t])=>Number(t)===tokens[0]); _gold=!!(e&&(e[1]||[]).includes('gold')); }catch(_){} }
+    if(tokens.length===1){ try{ const beP=await getBackendActor(true); const ps=premint?{tokens:(await beP.adminGetPendingCollectionSetup(colId)).perkTags}:await beP.adminGetCollectionPerkTags(colId); const e=ps.tokens.find(([t])=>Number(t)===tokens[0]); _gold=!!(e&&(e[1]||[]).includes('gold')); }catch(_){} }
     h+=`<div style='margin-bottom:14px'><div style='font-size:.68rem;font-weight:800;color:#ffd700;letter-spacing:2px;margin-bottom:6px'>GAME PERKS</div>
       <label style='display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.3);border-radius:8px;cursor:pointer'><input type='checkbox' data-ab-gold ${_gold?'checked':''} style='accent-color:#ffd700;width:15px;height:15px'/><span style='font-size:.72rem;font-weight:700;color:#ffe08a'>Gold status</span><span style='font-size:.65rem;color:#9aa4b2'>adds the collection perk tag + "-gold" (not secret: games can read it)</span></label></div>`;
   }
@@ -13323,13 +13352,14 @@ async function saveAbilityEditor(target,colId,clear){
       const r=await be.adminSetCollectionAbilities(colId,clear?[]:picked);
       if(r.err!==undefined) throw new Error(r.err);
     }else{
+      const premint=!!window._colMgrPremint;
       let tokMap={};
-      if(mode==='add'&&!clear){ const s2=await be.adminGetCollectionAbilitySetup(colId); for(const [t,l] of s2.tokens) tokMap[Number(t)]=l; }
+      if(mode==='add'&&!clear){ const s2=premint?{tokens:(await be.adminGetPendingCollectionSetup(colId)).abilities}:await be.adminGetCollectionAbilitySetup(colId); for(const [t,l] of s2.tokens) tokMap[Number(t)]=l; }
       let n=0;
       for(const t of target){
         let list=clear?[]:picked;
         if(mode==='add'&&!clear){ const keep=(tokMap[t]||[]).filter(([k])=>!picked.some(([p])=>p===k)); list=keep.concat(picked); }
-        const r=await be.adminSetTokenAbilities(BigInt(t),list);
+        const r=premint?await be.adminSetPendingTokenAbilities(colId,BigInt(t),list):await be.adminSetTokenAbilities(BigInt(t),list);
         if(r.err!==undefined) throw new Error('Token '+t+': '+r.err);
         n++; st.textContent='Saving... '+n+'/'+target.length;
       }
@@ -13339,7 +13369,7 @@ async function saveAbilityEditor(target,colId,clear){
       if(g){
         const on=g.checked&&!clear;
         const apply=clear||mode==='replace'||target.length===1||on;
-        if(apply){ for(const t of target){ const r=await be.adminSetTokenPerkTags(BigInt(t),on?['gold']:[]); if(r.err!==undefined) throw new Error('Token '+t+': '+r.err); } }
+        if(apply){ for(const t of target){ const r=window._colMgrPremint?await be.adminSetPendingTokenPerkTags(colId,BigInt(t),on?['gold']:[]):await be.adminSetTokenPerkTags(BigInt(t),on?['gold']:[]); if(r.err!==undefined) throw new Error('Token '+t+': '+r.err); } }
       }
     }
     st.textContent='\u2705 Saved'; st.style.color='#39ff14';
@@ -13488,8 +13518,34 @@ function adminEditNftAbility(tokenId,currentAbility){
 }
 // Single NFT clear ability (from X button)
 async function adminClearNftAbility(tokenId){
-  _abilityPickerTokens=[tokenId];
-  await clearAbilityFromTokens();
+  const colId=window._colMgrColId;
+  const status=document.getElementById('colMgrStatus');
+  try{
+    const be=await getBackendActor(true);
+    const r=window._colMgrPremint?await be.adminSetPendingTokenAbilities(colId,BigInt(tokenId),[]):await be.adminSetTokenAbilities(BigInt(tokenId),[]);
+    if(r.err!==undefined) throw new Error(r.err);
+    if(status){status.textContent='Ability cleared';status.style.color='#39ff14';}
+    openCollectionManager(colId);
+  }catch(e){ const err=safeUserErrorMessage(e,'abilities'); if(status){status.textContent=err;status.style.color='#ef4444';} else arcadeAlert('Error',escHtml(err)); }
+}
+// Pre-mint: edit one NFT's price (stored in the collection's pending price list)
+async function adminEditPendingNftPrice(colId,idx,currentPrice){
+  const newPrice=prompt('Ticket price for NFT #'+(idx+1)+':',currentPrice);
+  if(!newPrice||isNaN(newPrice)||Number(newPrice)<1) return;
+  const status=document.getElementById('colMgrStatus');
+  if(status){status.textContent='Updating price...';status.style.color='#ffd700';}
+  try{
+    const be=await getBackendActor(true);
+    const cols=await be.getOfficialCollections(); const col=cols.find(c=>c.id===colId);
+    if(!col) throw new Error('Collection not found');
+    let prices=(await be.getCollectionPrices(colId)).map(Number);
+    if(prices.length!==col.imageUrls.length) prices=col.imageUrls.map(()=>Number(col.ticketCost));
+    prices[idx]=Number(newPrice);
+    const r=await be.adminSetCollectionPrices(colId,prices.map(p=>BigInt(p)));
+    if(r.err!==undefined) throw new Error(r.err);
+    if(status){status.textContent='Price updated';status.style.color='#39ff14';}
+    openCollectionManager(colId); adminLoadCollections();
+  }catch(e){ const err=safeUserErrorMessage(e,'collection action'); if(status){status.textContent=err;status.style.color='#ef4444';} else arcadeAlert('Error',escHtml(err)); }
 }
 
 async function openDisabledAbilities(){
@@ -14519,6 +14575,15 @@ function _perkGrantsSection(key){ const a=(window._myPerks&&window._myPerks.acce
 async function loadMyPerks(){ try{ window._myPerks=S.connected?await (await getBackendActor(true)).getMyPerks():null; }catch(_){ window._myPerks=null; }
   // One-time link per visit for players whose Official PFP was set before this update (only ever sets, never clears).
   if(S.connected&&!window._pfpNftSynced){ window._pfpNftSynced=true; try{ const tok=officialPfpToken(getProfile()); if(tok!==null) syncPfpNft(await getBackendActor(true),tok); }catch(_){} } }
+// Game submissions need a Prize Booth VP Badge (Level 1). Returns true when the player may submit.
+async function submitVpGate(prefix){
+  const note=document.getElementById(prefix+'VpNote');
+  if(!S.connected){ if(note) note.style.display='none'; return true; }
+  try{ await getUserBadgeTypes(); }catch(_e){}
+  const okToSubmit=isAdmin()||getUserVpCount()>=1;
+  if(note) note.style.display=okToSubmit?'none':'block';
+  return okToSubmit;
+}
 function getUserVpCount(){
   if(isAdmin()) return 0; // admin holds no VP (but has full access via isAdmin checks)
   const types=_userBadgeTypes||[];
@@ -16999,7 +17064,7 @@ function closeNftDetail(){
 
   ['showProfileModal',showProfileModal],['pickAvatarNft',pickAvatarNft],['saveProfile',saveProfile],['closeProfileModal',closeProfileModal],
   ['filterPlayers',filterPlayers],['openVeteranPortal',openVeteranPortal],['openForumSection',openForumSection],['closeForumSection',closeForumSection],['buyVpNft',buyVpNft],['openThreadDetail',openThreadDetail],['closeThreadDetail',closeThreadDetail],['scanForumUpdates',scanForumUpdates],['renderProfileView',renderProfileView],['openProfileEdit',openProfileEdit],['closeProfileEdit',closeProfileEdit],['saveProfileEdit',saveProfileEdit],['pickEditAvatar',pickEditAvatar],['submitChosenName',submitChosenName],['removeProfilePfp',removeProfilePfp],['closeShowroomEdit',closeShowroomEdit],['saveShowroomEdit',saveShowroomEdit],['toggleShowroomNft',toggleShowroomNft],['viewPublicProfile',viewPublicProfile],['registerPublicPresence',registerPublicPresence],['adminUnban',adminUnban],['renderBanList',renderBanList],['showBanUserModal',showBanUserModal],['showNewPostForm',showNewPostForm],['hideNewPostForm',hideNewPostForm],['submitForumPost',submitForumPost],['submitReply',submitReply],['toggleNestedReplies',toggleNestedReplies],['toggleNestedReplyBox',toggleNestedReplyBox],['deletePost',deletePost],['deleteReply',deleteReply],['adminAddMod',adminAddMod],['adminRemoveMod',adminRemoveMod],['renderModList',renderModList],['adminAddBoost',adminAddBoost],['renderBoostList',renderBoostList],['quickBoostGame',quickBoostGame],['openDaoView',openDaoView],['closeDaoView',closeDaoView],['showDaoRestricted',showDaoRestricted],['openDaoSection',openDaoSection],['closeDaoSection',closeDaoSection],['renderDaoPage',renderDaoPage],['openDaoProposals',openDaoProposals],['closeDaoProposals',closeDaoProposals],['renderDaoThreadList',renderDaoThreadList],['closeDaoThreadDetail',closeDaoThreadDetail],['showDaoNewThread',showDaoNewThread],['hideDaoNewThread',hideDaoNewThread],['submitDaoThread',submitDaoThread],['openDaoThread',openDaoThread],['submitDaoReply',submitDaoReply],['deleteDaoPost',deleteDaoPost],['deleteDaoReply',deleteDaoReply],['renderDaoMain',renderDaoMain],['rescanEditProfileNfts',rescanEditProfileNfts],['showCreateProposal',showCreateProposal],['hideCreateProposal',hideCreateProposal],['submitProposal',submitProposal],['castVote',castVote],['viewProposal',viewProposal],['submitProposalReply',submitProposalReply],['deleteProposal',deleteProposal],['saveAdminResponse',saveAdminResponse],['removeAdminResponse',removeAdminResponse],['previewProposalImages',previewProposalImages],['removeProposalImage',removeProposalImage],['viewProposalImage',viewProposalImage],
-  ['updateProfileDisplay',updateProfileDisplay],['uploadGamePreview',uploadGamePreview],['uploadGameToChain',uploadGameToChain],['setUploadGameTier',setUploadGameTier],['updateUploadGameActionBtnVisibility',updateUploadGameActionBtnVisibility],['updateShowSubMonetizationUi',updateShowSubMonetizationUi],['adminSetPendingGamePricing',adminSetPendingGamePricing],['submitGameNavigate',submitGameNavigate],['refreshAdminPendingSubmissionSelect',refreshAdminPendingSubmissionSelect],['loadAdminPendingSubmissionTarget',loadAdminPendingSubmissionTarget],['useAdminPendingThumbnail',useAdminPendingThumbnail],['swapAdminPendingThumbnail',swapAdminPendingThumbnail],['handleAdminPendingThumbnailSwap',handleAdminPendingThumbnailSwap],['clearAdminPendingSubmissionPicker',clearAdminPendingSubmissionPicker],['refreshAdminGameUpdateSelect',refreshAdminGameUpdateSelect],['loadAdminGameUpdateTarget',loadAdminGameUpdateTarget],['selectAdminGameUpdateTarget',selectAdminGameUpdateTarget],['adminSuspendGame',adminSuspendGame],['adminRelistGame',adminRelistGame],['adminDeleteGamePermanently',adminDeleteGamePermanently],['loadTreasuryInfo',loadTreasuryInfo],['fillMaxTreasuryWithdraw',fillMaxTreasuryWithdraw],['adminWithdrawTreasury',adminWithdrawTreasury],['copyCommonOperatingWithdrawAddress',copyCommonOperatingWithdrawAddress],['loadDaoTreasuryAdmin',loadDaoTreasuryAdmin],['adminBurnDaoTokensFn',adminBurnDaoTokensFn],['adminBurnDaoTicketsFn',adminBurnDaoTicketsFn],['adminTransferDaoTokensFn',adminTransferDaoTokensFn],['adminTransferDaoTicketsFn',adminTransferDaoTicketsFn],['adminAwardDevBadge',adminAwardDevBadge],['adminAwardArtistBadge',adminAwardArtistBadge],['adminRevokeBadge',adminRevokeBadge],['checkJackpotNotifications',checkJackpotNotifications],['showJackpotPopup',showJackpotPopup],['openCollectionBrowser',openCollectionBrowser],['openCollectionManager',openCollectionManager],['openCollectionPricing',openCollectionPricing],['colPricingFillAll',colPricingFillAll],['colPricingSave',colPricingSave],['colPricingClear',colPricingClear],['adminToggleNftGrail',adminToggleNftGrail],['adminToggleSpotlight',adminToggleSpotlight],['adminEditNftPrice',adminEditNftPrice],['adminEditNftAbility',adminEditNftAbility],['adminClearNftAbility',adminClearNftAbility],['openAbilityPicker',openAbilityPicker],['applyAbilityToTokens',applyAbilityToTokens],['clearAbilityFromTokens',clearAbilityFromTokens],['colMgrSelectAll',colMgrSelectAll],['colMgrDeselectAll',colMgrDeselectAll],['colMgrAssignSelected',colMgrAssignSelected],['openDisabledAbilities',openDisabledAbilities],['toggleAbilityState',toggleAbilityState],['adminCreateCollection',adminCreateCollection],['adminLoadCollections',adminLoadCollections],['adminMintCollection',adminMintCollection],['adminDeleteCol',adminDeleteCol],
+  ['updateProfileDisplay',updateProfileDisplay],['uploadGamePreview',uploadGamePreview],['uploadGameToChain',uploadGameToChain],['setUploadGameTier',setUploadGameTier],['updateUploadGameActionBtnVisibility',updateUploadGameActionBtnVisibility],['updateShowSubMonetizationUi',updateShowSubMonetizationUi],['adminSetPendingGamePricing',adminSetPendingGamePricing],['submitGameNavigate',submitGameNavigate],['refreshAdminPendingSubmissionSelect',refreshAdminPendingSubmissionSelect],['loadAdminPendingSubmissionTarget',loadAdminPendingSubmissionTarget],['useAdminPendingThumbnail',useAdminPendingThumbnail],['swapAdminPendingThumbnail',swapAdminPendingThumbnail],['handleAdminPendingThumbnailSwap',handleAdminPendingThumbnailSwap],['clearAdminPendingSubmissionPicker',clearAdminPendingSubmissionPicker],['refreshAdminGameUpdateSelect',refreshAdminGameUpdateSelect],['loadAdminGameUpdateTarget',loadAdminGameUpdateTarget],['selectAdminGameUpdateTarget',selectAdminGameUpdateTarget],['adminSuspendGame',adminSuspendGame],['adminRelistGame',adminRelistGame],['adminDeleteGamePermanently',adminDeleteGamePermanently],['loadTreasuryInfo',loadTreasuryInfo],['fillMaxTreasuryWithdraw',fillMaxTreasuryWithdraw],['adminWithdrawTreasury',adminWithdrawTreasury],['copyCommonOperatingWithdrawAddress',copyCommonOperatingWithdrawAddress],['loadDaoTreasuryAdmin',loadDaoTreasuryAdmin],['adminBurnDaoTokensFn',adminBurnDaoTokensFn],['adminBurnDaoTicketsFn',adminBurnDaoTicketsFn],['adminTransferDaoTokensFn',adminTransferDaoTokensFn],['adminTransferDaoTicketsFn',adminTransferDaoTicketsFn],['adminAwardDevBadge',adminAwardDevBadge],['adminAwardArtistBadge',adminAwardArtistBadge],['adminRevokeBadge',adminRevokeBadge],['checkJackpotNotifications',checkJackpotNotifications],['showJackpotPopup',showJackpotPopup],['openCollectionBrowser',openCollectionBrowser],['openCollectionManager',openCollectionManager],['chooseNameUpdateCount',chooseNameUpdateCount],['adminEditPendingNftPrice',adminEditPendingNftPrice],['openCollectionPricing',openCollectionPricing],['colPricingFillAll',colPricingFillAll],['colPricingSave',colPricingSave],['colPricingClear',colPricingClear],['adminToggleNftGrail',adminToggleNftGrail],['adminToggleSpotlight',adminToggleSpotlight],['adminEditNftPrice',adminEditNftPrice],['adminEditNftAbility',adminEditNftAbility],['adminClearNftAbility',adminClearNftAbility],['openAbilityPicker',openAbilityPicker],['applyAbilityToTokens',applyAbilityToTokens],['clearAbilityFromTokens',clearAbilityFromTokens],['colMgrSelectAll',colMgrSelectAll],['colMgrDeselectAll',colMgrDeselectAll],['colMgrAssignSelected',colMgrAssignSelected],['openDisabledAbilities',openDisabledAbilities],['toggleAbilityState',toggleAbilityState],['adminCreateCollection',adminCreateCollection],['adminLoadCollections',adminLoadCollections],['adminMintCollection',adminMintCollection],['adminDeleteCol',adminDeleteCol],
   ['runTreasuryScan',runTreasuryScan],
   ['closeNftDetail',closeNftDetail],
   ['submitExistingNft',submitExistingNft],['switchNftTab',switchNftTab],['resetExistingNftFlow',resetExistingNftFlow],['renderMyNftSubmissions',renderMyNftSubmissions],['showUserNftDetail',showUserNftDetail],
@@ -17078,8 +17143,8 @@ function showViewHooked(v){
   if(v==='dao-dashboard') loadDaoDashboard();
   if(v==='prizes'){renderNftShop(); showTab('shop'); const pb=document.getElementById('prizeBoothBottomBtns'); if(pb) pb.style.display='flex';}
   if(v==='submit'){if(S.principalText&&qs('subPrincipal')) qs('subPrincipal').value=S.principalText; const p=getProfile(); if(p&&p.name&&qs('subDev')) qs('subDev').value=p.name;}
-  if(v==='back-submit'){const p=getProfile(); if(p&&p.name&&qs('backSubDev')) qs('backSubDev').value=p.name; refreshBackSubmissionFeeDisplay().catch(()=>{});}
-  if(v==='showroom-submit'){if(S.principalText&&qs('showSubPrincipal')) qs('showSubPrincipal').value=S.principalText; const p=getProfile(); if(p&&p.name&&qs('showSubDev')) qs('showSubDev').value=p.name;}
+  if(v==='back-submit'){const p=getProfile(); if(p&&p.name&&qs('backSubDev')) qs('backSubDev').value=p.name; refreshBackSubmissionFeeDisplay().catch(()=>{}); submitVpGate('backSub').catch(()=>{});}
+  if(v==='showroom-submit'){submitVpGate('showSub').catch(()=>{}); if(S.principalText&&qs('showSubPrincipal')) qs('showSubPrincipal').value=S.principalText; const p=getProfile(); if(p&&p.name&&qs('showSubDev')) qs('showSubDev').value=p.name;}
   if(v==='nft-upload'){if(S.principalText){if(qs('nftUpPrincipal'))qs('nftUpPrincipal').value=S.principalText;if(qs('nftExPrincipal'))qs('nftExPrincipal').value=S.principalText;} renderMyNftSubmissions();}
   if(v==='admin'){const ok=isAdmin();qs('adminAccessMsg').style.display=ok?'none':'block';qs('adminContent').style.display=ok?'block':'none';if(ok){switchAdminTab('treasury');renderNftAdminList();renderGameAdminList();refreshAdminGameUpdateSelect();loadTreasuryStats();loadTreasuryInfo();loadTicketReserveFundingAdmin();loadModeratorsFromChain().then(()=>renderModList());renderBoostList();renderBanList();adminLoadCollections();loadExtColRegistry();}}
 }
