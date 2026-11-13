@@ -1,3 +1,15 @@
-INFINITY ARCADE MANIFESTO
+INFINITY Arcade is an on-chain gaming hub that lives 100% on the Internet Computer.
 
-The manifesto is being rewritten. Check back soon.
+We offer an economy between players and creators, run by smart contracts, with a dev team that intervenes as little as possible beyond quality control and security. Anyone, anywhere can submit a web game and earn from it once it passes review. Creators are paid in ICP from the Tokens spent on their games. There’s no altcoin, no chart and no investors.
+
+Our games are entirely browser-based, in a model inspired by real-life arcades. Buy Tokens with ICP, spend Tokens to play, earn Tickets by scoring, and redeem Tickets in the Prize Booth for NFT art, DAO Voting Power and more. The higher your score, the more a Ticket Game pays out, but not every game pays Tickets — some are just for fun.
+
+We are NOT a casino. Tickets never convert back to ICP: what you win is prizes.
+
+Our Official Arcade NFTs can unlock exclusive content in games — secret items, characters, buffs, levels, Easter eggs — and can carry mystery arcade perks for their holders. The NFT market is open for you to list your own NFTs too: buyers pay in Tickets, you’re paid in ICP.
+
+The DAO is where the dev team and community propose and vote on the arcade’s direction and mingle in exclusive forums. Status rises as you acquire more Voting Power, which comes with more unlocks. Voting Power is redeemed with Tickets earned by playing. You cannot buy your way in.
+
+Our mission is to become an online hotspot for gamers, creators and artists. We are also showing the world that crypto is more than a chart. It can build real software that enriches its users. We are bringing crypto technology to gaming, not gaming to crypto.
+
+- Jay Nolan
