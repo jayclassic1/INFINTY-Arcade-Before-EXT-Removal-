@@ -1855,7 +1855,7 @@ window.addEventListener('message', (e) => {
 <!-- faq-bot-sync-1 -->
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What is Infinity Arcade?</button><div class='faq-a'>Infinity Arcade is a decentralized gaming hub built on the Internet Computer Protocol (ICP). Play games, earn tickets, collect NFTs, and participate in community governance - all 100% on-chain. No accounts, no passwords. Just connect with Internet Identity and play.</div></div>
 
-<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How do I create an account?</button><div class='faq-a'>Click "Connect / Create" in the top bar. This opens Internet Identity - a decentralized authentication system by DFINITY. You can create a new identity using your device's biometrics (fingerprint, Face ID) or a security key. No email, no password. Your identity is cryptographically yours. You stay signed in for 24 hours (or 4 hours without activity on the page); after that, just connect again.</div></div>
+<div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>How do I create an account?</button><div class='faq-a'>Click "Connect / Create" in the top bar. This opens Internet Identity - a decentralized authentication system by DFINITY. You can create a new identity using your device's biometrics (fingerprint, Face ID) or a security key. No email, no password. Your identity is cryptographically yours. You stay signed in for 30 days, or until you go 7 days without visiting; after that, just connect again. On a shared computer, press Disconnect when you're done.</div></div>
 
 <div class='faq-item'><button class='faq-q' onclick='toggleFaq(this)'>What do I need to play games?</button><div class='faq-a'>You need Tokens. Deposit ICP into your arcade account (1 ICP = 100 Tokens), then spend Tokens to play. Every Showroom game costs <b>1 Token</b>: ticket games charge per run, other games per visit (sessions last up to 2 hours). Games in The Back are free. In ticket games, your score decides how many Tickets you win from that game's prize pool.</div></div>
 
@@ -2551,8 +2551,8 @@ const ARCADE_CANISTER_ID=ENV.backend;
 let _arcadeAccountId=null;
 function getArcadeAccountId(){if(!_arcadeAccountId) _arcadeAccountId=principalToAccountHex(ARCADE_CANISTER_ID); return _arcadeAccountId;}
 const ACCOUNT_DOMAIN = new TextEncoder().encode('\x0Aaccount-id');
-const AUTH_SESSION_TTL_NS = BigInt(24*60*60)*1000000000n; // 24h login
-const AUTH_IDLE_TIMEOUT_MS = 4*60*60*1000; // 4h without activity on the page logs out
+const AUTH_SESSION_TTL_NS = BigInt(30*24*60*60)*1000000000n; // 30 days (Internet Identity's maximum)
+const AUTH_IDLE_TIMEOUT_MS = 7*24*60*60*1000; // 7 days without visiting the arcade logs out
 const AUTH_CLIENT_CREATE_OPTIONS = Object.freeze({idleOptions:Object.freeze({idleTimeout:AUTH_IDLE_TIMEOUT_MS})});
 let authClient=null, identityPrincipal=null;
 
@@ -4244,7 +4244,7 @@ async function handleSessionExpired(){
   if(_sessionExpiredShown) return;
   _sessionExpiredShown=true;
   try{ await disconnectWallet(); }catch(_e){}
-  try{ arcadeAlert('Session expired','Your login has expired (sessions last 24 hours). Please connect again to continue.'); }catch(_e){}
+  try{ arcadeAlert('Session expired','Your login has expired. Please connect again to continue.'); }catch(_e){}
   setTimeout(()=>{_sessionExpiredShown=false;},8000);
 }
 // Call before any signed call. Throws (after disconnecting) when the login has expired.
